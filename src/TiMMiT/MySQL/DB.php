@@ -1,16 +1,53 @@
 <?php
-	////////////////////////////////////////////////////////////////////////////
-	// DB Class Versie 2.2 (09-08-2010)																				
-	// gebaseerd op de DB class van Ferenc Franke (25-07-2007)								
-	// (c)  TimmiT.nl																													
-	// Geschreven door: Tim Schoondergang																			
-	////////////////////////////////////////////////////////////////////////////
+/**
+ * A very simple class for using MySQL.
+ * 
+ * PHP version 5.3+
+ * 
+ * @package TiMMiT/DB-MySQL
+ * @author  Tim Schoondergang <tim.schoondergang@TiMMiT.nl>
+ */
+/** */
+namespace TiMMiT\MySQL;
 
+/**
+ * MySQL DB connection.
+ * 
+ * Optionally use Jasny's Config class by configuring Config::i()->db;
+ * 
+ * @example <br/>
+ *   new DB($host, $user, $pwd, $dbname);<br/>
+ *   $result = DB::conn()->query("SELECT * FROM foo WHERE id = ?", $id);
+ * 
+ * @package DB-MySQL
+ */
 	class DB {
+
+    /**
+     * The config vars.
+     * 
+     * @var array
+     */			
 		public static $var = array();
+ 		
+ 		/**
+    * Created DB connection
+    * @var DB
+    */
 		public static $mlink;
+
+    /**
+     * The default charset.
+     * 
+     * @var string
+     */		
 		public static $charset = "utf8";
 		
+    /**
+     * Class constructor.
+     * 
+     * @param array $array      settings as assoc array
+     */
 		function __construct($array) {
 			if (is_array($array)) {
 				self::$var = $array;
@@ -18,32 +55,57 @@
 			}
 		}
 		
+    /**
+     * Class destructor.
+     */		
 		function __destruct() {
 			mysqli_close(self::$mlink);
 		}		
 		
+    /**
+     * throw Exception
+     * @param string $message
+     * @param string $code
+     * @return boolean
+     */			
 		function throwException($message = null,$code = null) {
     	throw new Exception($message,$code);
 		}		
 
+    /**
+     * Connect to DB
+     * @return void
+     */	
 		public static function connect() {
 			self::$mlink = mysqli_connect(self::$var["host"], self::$var["username"], self::$var["password"], self::$var["database"], (int)self::$var["port"]) or trigger_error("Connection Failed: kon geen verbinding maken met de database!",E_USER_ERROR);
 			if (self::$mlink) {
-				//$select_db = mysqli_select_db(self::$mlink,$this->var["database"]) or trigger_error("Connection Failed: kon de database niet selecteren!"); 
 				mysqli_set_charset(self::$mlink,'utf8'); 
 			}
 		}
-		
+
+    /**
+     * Update Query function
+     * @param string $query
+     * @return boolean
+     */			
 		public static function updateQuery($query) {
-			//klkl();
 			$result = mysqli_query(self::$mlink,$query) or trigger_error("Query Failed:<ul><li>errorno=" . mysqli_errno(self::$mlink) ."</li><li>error=" . mysqli_error(self::$mlink) . "</li><li>query= " . $query . "</li></ul>",E_USER_ERROR);
-			//$result = mysqli_query(self::$mlink,$query) or trigger_error("Query Failed:<ul><li>errorno=" . mysqli_errno(self::$mlink) ."</li><li>error=" . mysqli_error(self::$mlink) . "</li><li>query= " . $query . "</li></ul>");
 		}
-		
+
+    /**
+     * Delete Query function
+     * @param string $query
+     * @return boolean
+     */			
 		public static function deleteQuery($query) {
 			$result = mysqli_query(self::$mlink,$query) or trigger_error("Query Failed:<ul><li>errorno=" . mysqli_errno(self::$mlink) ."</li><li>error=" . mysqli_error(self::$mlink) . "</li><li>query= " . $query . "</li></ul>",E_USER_ERROR);
 		}		
 
+    /**
+     * Select Query function
+     * @param string $query
+     * @return array
+     */	
 		public static function selectQuery($query) {
 			$result = mysqli_query(self::$mlink,$query) or trigger_error("Query Failed:<ul><li>errorno=" . mysqli_errno(self::$mlink) ."</li><li>error=" . mysqli_error(self::$mlink) . "</li><li>query= " . $query . "</li></ul>",E_USER_ERROR);
 			$return = array();
@@ -53,11 +115,21 @@
 			return $return;
 		}		
 
+    /**
+     * Insert Query function
+     * @param string $query
+     * @return int
+     */	
 		public static function insertQuery($query) {
 			mysqli_query(self::$mlink,$query) or trigger_error("Query Failed:<ul><li>errorno=" . mysqli_errno(self::$mlink) ."</li><li>error=" . mysqli_error(self::$mlink) . "</li><li>query= " . $query . "</li></ul>",E_USER_ERROR);
 			return mysqli_insert_id(self::$mlink);
 		}
 		
+    /**
+     * Check if table exists
+     * @param string $table
+     * @return boolean
+     */			
 		public static function checkTableExist($table) {
 			if(mysqli_num_rows(mysqli_query(self::$mlink,"SHOW TABLES LIKE '".$table."'"))) {
 			 	return true;
@@ -65,7 +137,12 @@
 				return false;	
 			}
 		}
-		
+
+    /**
+     * Check if query gives result
+     * @param string $query
+     * @return boolean
+     */			
 		public static function checkForResult($query) {
 			$result = mysqli_query(self::$mlink,$query) or trigger_error("Query Failed:<ul><li>errorno=" . mysqli_errno(self::$mlink) ."</li><li>error=" . mysqli_error(self::$mlink) . "</li><li>query= " . $query . "</li></ul>",E_USER_ERROR);
 			if (mysqli_num_rows(self::$mlink,$result) > 0) {
@@ -74,7 +151,14 @@
 				return false;
 			}
 		}
-		
+
+    /**
+     * Check if field is Null
+     * @param string $table
+     * @param string $field
+     * @param string $primaryKeyFieldID
+     * @return boolean
+     */			
 		public static function checkIsNull($table, $field, $primaryKeyFieldID) {
 			// var $table = De tabel waaruit je een veld wilt controleren
 			// var $field = De kolom waarin je een waarde wilt controleren
@@ -89,7 +173,11 @@
 		}
 		
 		
-		// SQL injection disabelen
+    /**
+     * Clean variable for DB against SQL injection
+     * @param string $var
+     * @return string
+     */
 		public static function Clean4DB($var) {
 			//if(get_magic_quotes_gpc()){
 			//	$var = stripslashes($var);
@@ -97,25 +185,43 @@
 			return addcslashes(mysqli_real_escape_string(self::$mlink,$var), "%_");;
 		}
 
-		// SQL injection disabelen
-		public static function CleanFromDB($var) {
+    /**
+     * Clean variable from DB against slashes against SQL injection
+     * @param string $var
+     * @return string
+     */
+    public static function CleanFromDB($var) {
 			//if(get_magic_quotes_gpc()){
 			//	$var = stripslashes($var);
 			//}
 			return stripcslashes($var);
 		}
 
-		// Make ID
-		public static function MakeID() {
+    /**
+     * Make md5 ID
+     * @return string
+     */
+    public static function MakeID() {
 			return md5(uniqid(rand().time(), true));
 		}
 		
+    /**
+     * Get the Charset of connection
+     * @return string
+     */		
 		public static function GetCharSet() {
 			return mysqli_character_set_name(self::$mlink);
 		}
 		
-		// Make Where from param
-		public static function GetWhereFromParam($param=1,$operator='=',$value=1,$divider_operator='AND'){
+    /**
+     * Make where statement from parameters
+     * @param string|array $param      paramater or parameters as assoc array
+     * @param string $operator
+     * @param string $value
+     * @param string $divider_operator
+     * @return string
+     */	
+     public static function GetWhereFromParam($param=1,$operator='=',$value=1,$divider_operator='AND'){
 			if(is_array($param)){
 				$where = "";
 				if(count($param)>0){
