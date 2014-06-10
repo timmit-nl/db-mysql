@@ -170,27 +170,25 @@ namespace TiMMiT\MySQL;
 		
     /**
      * Clean variable for DB against SQL injection
-     * @param string $var
+     * @param string $value
+     * @param boolean $key default false
      * @return string
      */
-		public static function Clean4DB($var) {
-			//if(get_magic_quotes_gpc()){
-			//	$var = stripslashes($var);
-			//}
-			return addcslashes(mysqli_real_escape_string(self::$mlink,$var), "%_");;
+		public static function Clean4DB($value,$key=false) {
+			$value = addcslashes(mysqli_real_escape_string(self::$mlink,$value), "%_");
+			if($key!=false){
+				$value = str_replace('\_',"_",$value);
+			}
+			return $value;
 		}
 
     /**
      * Clean variable from DB against slashes against SQL injection
      * @param string $value
-     * @param boolean $key default false
      * @return string
      */
-    public static function CleanFromDB($value,$key=false) {
+    public static function CleanFromDB($value) {
 			$value = stripcslashes($value);
-			if($key!=false){
-				$value = str_replace('\_',"_",$value);
-			}
 			return $value;
 		}
 
