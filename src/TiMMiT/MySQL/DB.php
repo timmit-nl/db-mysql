@@ -13,11 +13,6 @@ namespace TiMMiT\MySQL;
 /**
  * MySQL DB connection.
  * 
- * Optionally use Jasny's Config class by configuring Config::i()->db;
- * 
- * @example <br/>
- *   new DB($host, $user, $pwd, $dbname);<br/>
- *   $result = DB::conn()->query("SELECT * FROM foo WHERE id = ?", $id);
  * 
  * @package DB-MySQL
  */
@@ -187,14 +182,16 @@ namespace TiMMiT\MySQL;
 
     /**
      * Clean variable from DB against slashes against SQL injection
-     * @param string $var
+     * @param string $value
+     * @param boolean $key default false
      * @return string
      */
-    public static function CleanFromDB($var) {
-			//if(get_magic_quotes_gpc()){
-			//	$var = stripslashes($var);
-			//}
-			return stripcslashes($var);
+    public static function CleanFromDB($value,$key=false) {
+			$value = stripcslashes($value);
+			if($key!=false){
+				$value = str_replace('\_',"_",$value);
+			}
+			return $value;
 		}
 
     /**
