@@ -249,7 +249,7 @@ namespace TiMMiT\MySQL;
 					$value = DB::Clean4DB($value);
 					$value = str_replace('\_',"_",$value);
 					$value = str_replace('*',"%",$value);
-					$where = "`".str_replace('\_',"_",DB::Clean4DB($param))."`".DB::Clean4DB($operator)."'".DB::Clean4DB($value)."'";
+					$where = "`".str_replace('\_',"_",DB::Clean4DB($param))."` ".DB::Clean4DB($operator)." '".DB::Clean4DB($value)."'";
 				}
 			}
 			return $where;

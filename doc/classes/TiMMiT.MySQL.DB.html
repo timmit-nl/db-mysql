@@ -144,28 +144,28 @@
                                 <div class="accordion" style="margin-bottom: 0">
         <div class="accordion-group">
             <div class="accordion-heading">
-                                    <a class="accordion-toggle " data-toggle="collapse" data-target="#namespace-1021899548"></a>
+                                    <a class="accordion-toggle " data-toggle="collapse" data-target="#namespace-1641832426"></a>
                                 <a href="../namespaces/default.html" style="margin-left: 30px; padding-left: 0">\</a>
             </div>
-            <div id="namespace-1021899548" class="accordion-body collapse in">
+            <div id="namespace-1641832426" class="accordion-body collapse in">
                 <div class="accordion-inner">
 
                                                     <div class="accordion" style="margin-bottom: 0">
         <div class="accordion-group">
             <div class="accordion-heading">
-                                    <a class="accordion-toggle collapsed" data-toggle="collapse" data-target="#namespace-216666580"></a>
+                                    <a class="accordion-toggle collapsed" data-toggle="collapse" data-target="#namespace-1208149639"></a>
                                 <a href="../namespaces/TiMMiT.html" style="margin-left: 30px; padding-left: 0">TiMMiT</a>
             </div>
-            <div id="namespace-216666580" class="accordion-body collapse ">
+            <div id="namespace-1208149639" class="accordion-body collapse ">
                 <div class="accordion-inner">
 
                                                     <div class="accordion" style="margin-bottom: 0">
         <div class="accordion-group">
             <div class="accordion-heading">
-                                    <a class="accordion-toggle collapsed" data-toggle="collapse" data-target="#namespace-1145984299"></a>
+                                    <a class="accordion-toggle collapsed" data-toggle="collapse" data-target="#namespace-706346758"></a>
                                 <a href="../namespaces/TiMMiT.MySQL.html" style="margin-left: 30px; padding-left: 0">MySQL</a>
             </div>
-            <div id="namespace-1145984299" class="accordion-body collapse ">
+            <div id="namespace-706346758" class="accordion-body collapse ">
                 <div class="accordion-inner">
 
                     
@@ -206,7 +206,7 @@
 
                     <h1><small>\TiMMiT\MySQL</small>DB</h1>
                     <p><em>MySQL DB connection.</em></p>
-                    <p>Optionally use Jasny's Config class by configuring Config::i()->db;</p>
+                    
 
                     <section id="summary">
                         <h2>Summary</h2>
@@ -293,15 +293,7 @@
                                                                         </dl>
                     <h2>Tags</h2>
                     <table class="table table-condensed">
-                                            <tr>
-                            <th>
-                                example
-                            </th>
-                            <td>
-                                                                    <p>new DB($host, $user, $pwd, $dbname);<br/>
-  $result = DB::conn()->query("SELECT * FROM foo WHERE id = ?", $id);</p>
-                                                            </td>
-                        </tr>
+                                            <tr><td colspan="2"><em>None found</em></td></tr>
                                         </table>
                 </aside>
             </div>
@@ -786,7 +778,7 @@
             <article class="method">
                 <h3 class="public ">Clean4DB()</h3>
                 <a href="#source-view" role="button" class="pull-right btn" data-toggle="modal" style="font-size: 1.1em; padding: 9px 14px"><i class="icon-code"></i></a>
-                <pre class="signature" style="margin-right: 54px;">Clean4DB(string <span class="argument">$var</span>) : string</pre>
+                <pre class="signature" style="margin-right: 54px;">Clean4DB(string <span class="argument">$value</span>, boolean <span class="argument">$key</span>) : string</pre>
                 <p><em>Clean variable for DB against SQL injection</em></p>
                 
 
@@ -794,8 +786,13 @@
                     <table class="table table-condensed table-hover">
                                                     <tr>
                                 <td>string</td>
-                                <td>$var </td>
+                                <td>$value </td>
                                 <td></td>
+                            </tr>
+                                                    <tr>
+                                <td>boolean</td>
+                                <td>$key </td>
+                                <td><p>default false</p></td>
                             </tr>
                                             </table>
                 
@@ -822,7 +819,7 @@
             <article class="method">
                 <h3 class="public ">CleanFromDB()</h3>
                 <a href="#source-view" role="button" class="pull-right btn" data-toggle="modal" style="font-size: 1.1em; padding: 9px 14px"><i class="icon-code"></i></a>
-                <pre class="signature" style="margin-right: 54px;">CleanFromDB(string <span class="argument">$var</span>) : string</pre>
+                <pre class="signature" style="margin-right: 54px;">CleanFromDB(string <span class="argument">$value</span>) : string</pre>
                 <p><em>Clean variable from DB against slashes against SQL injection</em></p>
                 
 
@@ -830,7 +827,7 @@
                     <table class="table table-condensed table-hover">
                                                     <tr>
                                 <td>string</td>
-                                <td>$var </td>
+                                <td>$value </td>
                                 <td></td>
                             </tr>
                                             </table>
@@ -1009,7 +1006,7 @@
                 <section class="span10 offset1">
                     <hr />
                     Documentation is powered by <a href="http://www.phpdoc.org/">phpDocumentor </a> and authored
-                    on May 21st, 2014 at 09:54.
+                    on June 11th, 2014 at 15:27.
                 </section>
             </section>
         </section>
