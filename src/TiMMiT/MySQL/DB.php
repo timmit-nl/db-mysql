@@ -12,9 +12,6 @@ namespace TiMMiT\MySQL;
 
 /**
  * MySQL DB connection.
- * 
- * 
- * @package DB-MySQL
  */
 	class DB {
 
@@ -39,10 +36,9 @@ namespace TiMMiT\MySQL;
 		public static $charset = "utf8";
 		
     /**
-     * Class constructor.
-     * 
-     * @param array $array      settings as assoc array
-     */
+    * Class constructor.
+    * @param array $array      settings as assoc array
+    */
 		function __construct($array) {
 			if (is_array($array)) {
 				self::$var = $array;
@@ -127,6 +123,20 @@ namespace TiMMiT\MySQL;
      */			
 		public static function checkTableExist($table) {
 			if(mysqli_num_rows(mysqli_query(self::$mlink,"SHOW TABLES LIKE '".$table."'"))) {
+			 	return true;
+			} else {
+				return false;	
+			}
+		}
+
+    /**
+     * Check if column exists in table
+     * @param string $table
+     * @param string $column
+     * @return boolean
+     */	
+		public static function checkIfColumnExistInTable($table,$column) {
+			if(mysqli_num_rows(mysqli_query(self::$mlink,"SHOW COLUMNS FROM `".$table."` LIKE '".$column."';"))) {
 			 	return true;
 			} else {
 				return false;	

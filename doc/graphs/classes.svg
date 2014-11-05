@@ -45,7 +45,7 @@
 <!-- \\TiMMiT\\MySQL\\DB -->
 <g id="node4" class="node"><title>\\TiMMiT\\MySQL\\DB</title>
 <polygon fill="none" stroke="black" points="86,-68 32,-68 32,-32 86,-32 86,-68"/>
-<text text-anchor="middle" x="59" y="-47.1" font-family="Times Roman,serif" font-size="11.00">DB</text>
+<text text-anchor="middle" x="59" y="-47.1" font-family="Courier,monospace" font-size="11.00">DB</text>
 </g>
 </g>
 </svg>

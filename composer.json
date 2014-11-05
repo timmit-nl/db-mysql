@@ -1,7 +1,8 @@
 {
     "name": "timmit/db-mysql",
-    "description": "A simple DB layer in PHP for using MySQL",
-    "version": "v1.0.7",
+    "description": "A simple DB layer in PHP for using MySQL(i)",
+    "version": "v1.0.8",
+    "keywords": ["DB", "MySQL", "MySQLi", "database", "DB layer", "database layer"],
     "license": "MIT",
     "homepage": "http://www.TiMMiT.nl/",
     "authors": [
