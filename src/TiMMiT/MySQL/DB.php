@@ -47,13 +47,6 @@ namespace TiMMiT\MySQL;
 		}
 		
     /**
-     * Class destructor.
-     */		
-		function __destruct() {
-			mysqli_close(self::$mlink);
-		}		
-		
-    /**
      * throw Exception
      * @param string $message
      * @param string $code
