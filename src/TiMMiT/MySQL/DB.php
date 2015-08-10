@@ -21,6 +21,14 @@ namespace TiMMiT\MySQL;
      * @var array
      */			
 		public static $var = array();
+		
+
+    /**
+     * The stats vars.
+     * 
+     * @var array
+     */			
+		public static $stats = array();
  		
  		/**
     * Created DB connection
@@ -45,6 +53,18 @@ namespace TiMMiT\MySQL;
 				self::connect();
 			}
 		}
+
+    /**
+    * static function to run before called function is run
+    * @param string $name      
+    * @param array $arguments      
+    */
+    public static function __callStatic($name, $arguments) {
+    	self::Add2Stats($name);
+    	return forward_static_call(array(__CLASS__,$name),$arguments);
+    }
+
+
 		
     /**
      * throw Exception
@@ -256,8 +276,18 @@ namespace TiMMiT\MySQL;
 				}
 			}
 			return $where;
-		}		
+		}
 		
+    /**
+     * add item tot stats
+     * @param string $queryType Soort Query
+     * @return void
+     */	
+		public static function Add2Stats($queryType=''){
+			if(!isset(self::$stats[$queryType]){
+				self::$stats[$queryType] = 0;
+			}
+			self::$stats[$queryType]++;
+		}
 		
 	}
-?>
