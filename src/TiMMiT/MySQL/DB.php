@@ -61,7 +61,7 @@ namespace TiMMiT\MySQL;
     */
     public static function __callStatic($name, $arguments) {
     	self::Add2Stats($name);
-    	return forward_static_call(array(__CLASS__,$name),$arguments);
+    	return forward_static_call_array(array(__CLASS__,'_'.$name),$arguments);
     }
 
 
@@ -80,7 +80,7 @@ namespace TiMMiT\MySQL;
      * Connect to DB
      * @return void
      */	
-		public static function connect() {
+		public static function _connect() {
 			self::$mlink = mysqli_connect(self::$var["host"], self::$var["username"], self::$var["password"], self::$var["database"], (int)self::$var["port"]) or trigger_error("Connection Failed: kon geen verbinding maken met de database!",E_USER_ERROR);
 			if (self::$mlink) {
 				mysqli_set_charset(self::$mlink,'utf8'); 
@@ -92,7 +92,7 @@ namespace TiMMiT\MySQL;
      * @param string $query
      * @return boolean
      */			
-		public static function updateQuery($query) {
+		public static function _updateQuery($query) {
 			$result = mysqli_query(self::$mlink,$query) or trigger_error("Query Failed:<ul><li>errorno=" . mysqli_errno(self::$mlink) ."</li><li>error=" . mysqli_error(self::$mlink) . "</li><li>query= " . $query . "</li></ul>",E_USER_ERROR);
 		}
 
@@ -101,7 +101,7 @@ namespace TiMMiT\MySQL;
      * @param string $query
      * @return boolean
      */			
-		public static function deleteQuery($query) {
+		public static function _deleteQuery($query) {
 			$result = mysqli_query(self::$mlink,$query) or trigger_error("Query Failed:<ul><li>errorno=" . mysqli_errno(self::$mlink) ."</li><li>error=" . mysqli_error(self::$mlink) . "</li><li>query= " . $query . "</li></ul>",E_USER_ERROR);
 		}		
 
@@ -110,7 +110,7 @@ namespace TiMMiT\MySQL;
      * @param string $query
      * @return array
      */	
-		public static function selectQuery($query) {
+		public static function _selectQuery($query) {
 			$result = mysqli_query(self::$mlink,$query) or trigger_error("Query Failed:<ul><li>errorno=" . mysqli_errno(self::$mlink) ."</li><li>error=" . mysqli_error(self::$mlink) . "</li><li>query= " . $query . "</li></ul>",E_USER_ERROR);
 			$return = array();
 			while ($row = mysqli_fetch_assoc($result)) {
@@ -124,7 +124,7 @@ namespace TiMMiT\MySQL;
      * @param string $query
      * @return int
      */	
-		public static function insertQuery($query) {
+		public static function _insertQuery($query) {
 			mysqli_query(self::$mlink,$query) or trigger_error("Query Failed:<ul><li>errorno=" . mysqli_errno(self::$mlink) ."</li><li>error=" . mysqli_error(self::$mlink) . "</li><li>query= " . $query . "</li></ul>",E_USER_ERROR);
 			return mysqli_insert_id(self::$mlink);
 		}
@@ -134,7 +134,7 @@ namespace TiMMiT\MySQL;
      * @param string $table
      * @return boolean
      */			
-		public static function checkTableExist($table) {
+		public static function _checkTableExist($table) {
 			if(mysqli_num_rows(mysqli_query(self::$mlink,"SHOW TABLES LIKE '".$table."'"))) {
 			 	return true;
 			} else {
@@ -148,7 +148,7 @@ namespace TiMMiT\MySQL;
      * @param string $column
      * @return boolean
      */	
-		public static function checkIfColumnExistInTable($table,$column) {
+		public static function _checkIfColumnExistInTable($table,$column) {
 			if(mysqli_num_rows(mysqli_query(self::$mlink,"SHOW COLUMNS FROM `".$table."` LIKE '".$column."';"))) {
 			 	return true;
 			} else {
@@ -161,7 +161,7 @@ namespace TiMMiT\MySQL;
      * @param string $query
      * @return boolean
      */			
-		public static function checkForResult($query) {
+		public static function _checkForResult($query) {
 			$result = mysqli_query(self::$mlink,$query) or trigger_error("Query Failed:<ul><li>errorno=" . mysqli_errno(self::$mlink) ."</li><li>error=" . mysqli_error(self::$mlink) . "</li><li>query= " . $query . "</li></ul>",E_USER_ERROR);
 			if (mysqli_num_rows(self::$mlink,$result) > 0) {
 				return true;
@@ -177,7 +177,7 @@ namespace TiMMiT\MySQL;
      * @param string $primaryKeyFieldID
      * @return boolean
      */			
-		public static function checkIsNull($table, $field, $primaryKeyFieldID) {
+		public static function _checkIsNull($table, $field, $primaryKeyFieldID) {
 			// var $table = De tabel waaruit je een veld wilt controleren
 			// var $field = De kolom waarin je een waarde wilt controleren
 			// var $primaryKeyFieldID is de ID van de regel waarin de kolom staat.
@@ -197,7 +197,7 @@ namespace TiMMiT\MySQL;
      * @param boolean $key default false
      * @return string
      */
-		public static function Clean4DB($value,$key=false) {
+		public static function _Clean4DB($value,$key=false) {
 			$value = addcslashes(mysqli_real_escape_string(self::$mlink,$value), "%_");
 			if($key!=false){
 				$value = str_replace('\_',"_",$value);
@@ -210,7 +210,7 @@ namespace TiMMiT\MySQL;
      * @param string $value
      * @return string
      */
-    public static function CleanFromDB($value) {
+    public static function _CleanFromDB($value) {
 			$value = stripcslashes($value);
 			return $value;
 		}
@@ -219,7 +219,7 @@ namespace TiMMiT\MySQL;
      * Make md5 ID
      * @return string
      */
-    public static function MakeID() {
+    public static function _MakeID() {
 			return md5(uniqid(rand().time(), true));
 		}
 		
@@ -227,7 +227,7 @@ namespace TiMMiT\MySQL;
      * Get the Charset of connection
      * @return string
      */		
-		public static function GetCharSet() {
+		public static function _GetCharSet() {
 			return mysqli_character_set_name(self::$mlink);
 		}
 		
@@ -239,7 +239,7 @@ namespace TiMMiT\MySQL;
      * @param string $divider_operator
      * @return string
      */	
-     public static function GetWhereFromParam($param=1,$operator='=',$value=1,$divider_operator='AND'){
+     public static function _GetWhereFromParam($param=1,$operator='=',$value=1,$divider_operator='AND'){
 			if(is_array($param)){
 				$where = "";
 				if(count($param)>0){
@@ -283,11 +283,19 @@ namespace TiMMiT\MySQL;
      * @param string $queryType Soort Query
      * @return void
      */	
-		public static function Add2Stats($queryType=''){
-			if(!isset(self::$stats[$queryType]){
+		private static function Add2Stats($queryType=''){
+			if(!isset(self::$stats[$queryType])){
 				self::$stats[$queryType] = 0;
 			}
 			self::$stats[$queryType]++;
+		}
+		
+    /**
+     * get the stats
+     * @return array stats
+     */	
+		public static function GetStats(){
+			return self::$stats;
 		}
 		
 	}
