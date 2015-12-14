@@ -216,11 +216,51 @@ namespace TiMMiT\MySQL;
 		}
 
     /**
-     * Make md5 ID
+     * Make a hashed ID from seed
+     * @param string $hash
+     * @param int $len
+     * @param mix $seed
      * @return string
      */
-    public static function _MakeID() {
-			return md5(uniqid(rand().time(), true));
+		public static function _MakeID($hash='',$len=1,$seed=""){
+			switch($hash):
+				default:
+					$hash = 'sha1';
+					$length = 32;
+					break;
+				case 'sha1':
+					$length = 31;
+					break;
+				case 'sha256':
+					$length = 50;
+					break;
+				case 'md5':
+					$length = 25;
+					break;
+			endswitch;
+			if(empty($len)){
+				$length = 0;
+			} else {
+				$length = max($len,$length);
+			}
+			if(!empty($seed)){
+				if(!is_string($seed)){
+					$seed = serialize($seed);
+				}
+			} else {
+				$seed = uniqid(rand().time(), true);
+			}
+			$id = base_convert(hash($hash,$seed),16,36);
+			$erbij = $length-strlen($id);
+			if($erbij>0){
+				$stap = 10;
+				for($a=0;$a<$erbij;$a+=$stap){
+					$erbij2 = min(($erbij-$a),$stap);
+					$rand = rand(pow(36,($erbij2-1)),(pow(36,$erbij2)-1));
+					$id .= base_convert($rand,10,36);
+				}
+			}
+			return $id;
 		}
 		
     /**
