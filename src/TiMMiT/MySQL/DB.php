@@ -220,9 +220,10 @@ namespace TiMMiT\MySQL;
      * @param string $hash
      * @param int $len
      * @param mix $seed
+     * @param string $add
      * @return string
      */
-		public static function _MakeID($hash='',$len=1,$seed=""){
+		public static function _MakeID($hash='',$len=1,$seed="",$add=''){
 			switch($hash):
 				default:
 					$hash = 'sha1';
@@ -253,11 +254,17 @@ namespace TiMMiT\MySQL;
 			$id = base_convert(hash($hash,$seed),16,36);
 			$erbij = $length-strlen($id);
 			if($erbij>0){
-				$stap = 10;
-				for($a=0;$a<$erbij;$a+=$stap){
-					$erbij2 = min(($erbij-$a),$stap);
-					$rand = rand(pow(36,($erbij2-1)),(pow(36,$erbij2)-1));
-					$id .= base_convert($rand,10,36);
+				if($add==''){
+					$stap = 10;
+					for($a=0;$a<$erbij;$a+=$stap){
+						$erbij2 = min(($erbij-$a),$stap);
+						$rand = rand(pow(36,($erbij2-1)),(pow(36,$erbij2)-1));
+						$id .= base_convert($rand,10,36);
+					}
+				} else {
+					for($a=0;$a<$erbij;$a++){
+						$id .= $add;
+					}
 				}
 			}
 			return $id;
