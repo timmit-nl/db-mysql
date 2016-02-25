@@ -108,13 +108,18 @@ namespace TiMMiT\MySQL;
     /**
      * Select Query function
      * @param string $query
+     * @param string $keyField
      * @return array
      */	
-		public static function _selectQuery($query) {
+		public static function _selectQuery($query,$keyField='') {
 			$result = mysqli_query(self::$mlink,$query) or trigger_error("Query Failed:<ul><li>errorno=" . mysqli_errno(self::$mlink) ."</li><li>error=" . mysqli_error(self::$mlink) . "</li><li>query= " . $query . "</li></ul>",E_USER_ERROR);
 			$return = array();
 			while ($row = mysqli_fetch_assoc($result)) {
-				$return[] = $row;
+				if(!empty($keyField) && isset($row[$keyField])){
+					$return[$row[$keyField]] = $row;
+				} else {
+					$return[] = $row;
+				}
 			}
 			return $return;
 		}		
