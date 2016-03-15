@@ -21,7 +21,13 @@ namespace TiMMiT\MySQL;
      * @var array
      */			
 		public static $var = array();
-		
+
+    /**
+     * Max tries before failure by deadlock
+     * 
+     * @var int
+     */
+		public static $max_deadlock_count = 5;		
 
     /**
      * The stats vars.
@@ -92,8 +98,31 @@ namespace TiMMiT\MySQL;
      * @param string $query
      * @return boolean
      */			
+		private static function _query($query,$count=0) {
+			$result = mysqli_query(self::$mlink,$query);
+			if (!$result) {
+				$errorno = mysqli_errno(self::$mlink);
+				if ($errorno == 1213){
+					if($count < self::$max_deadlock_count){
+						self::query($query,($count+1));
+					} else {
+						trigger_error("Query Failed:<ul><li>errorno=" . mysqli_errno(self::$mlink) ."</li><li>failure_count=" . $count ." of max=" . self::$max_deadlock_count ." </li><li>error=" . mysqli_error(self::$mlink) . "</li><li>query=" . $query . "</li></ul>",E_USER_ERROR);
+					}
+				} else {
+					trigger_error("Query Failed:<ul><li>errorno=" . mysqli_errno(self::$mlink) ."</li><li>error=" . mysqli_error(self::$mlink) . "</li><li>query= " . $query . "</li></ul>",E_USER_ERROR);
+			 	}
+			}
+			return $result;
+
+		}
+
+    /**
+     * Update Query function
+     * @param string $query
+     * @return boolean
+     */			
 		public static function _updateQuery($query) {
-			$result = mysqli_query(self::$mlink,$query) or trigger_error("Query Failed:<ul><li>errorno=" . mysqli_errno(self::$mlink) ."</li><li>error=" . mysqli_error(self::$mlink) . "</li><li>query= " . $query . "</li></ul>",E_USER_ERROR);
+			return self::query($query);
 		}
 
     /**
@@ -102,7 +131,7 @@ namespace TiMMiT\MySQL;
      * @return boolean
      */			
 		public static function _deleteQuery($query) {
-			$result = mysqli_query(self::$mlink,$query) or trigger_error("Query Failed:<ul><li>errorno=" . mysqli_errno(self::$mlink) ."</li><li>error=" . mysqli_error(self::$mlink) . "</li><li>query= " . $query . "</li></ul>",E_USER_ERROR);
+			return self::query($query);
 		}		
 
     /**
@@ -112,14 +141,18 @@ namespace TiMMiT\MySQL;
      * @return array
      */	
 		public static function _selectQuery($query,$keyField='') {
-			$result = mysqli_query(self::$mlink,$query) or trigger_error("Query Failed:<ul><li>errorno=" . mysqli_errno(self::$mlink) ."</li><li>error=" . mysqli_error(self::$mlink) . "</li><li>query= " . $query . "</li></ul>",E_USER_ERROR);
+			$result = self::query($query);
 			$return = array();
-			while ($row = mysqli_fetch_assoc($result)) {
-				if(!empty($keyField) && isset($row[$keyField])){
-					$return[$row[$keyField]] = $row;
-				} else {
-					$return[] = $row;
+			if($result instanceof \mysqli_result){
+				//while ($row = mysqli_fetch_assoc($result)) {
+				while ($row = $result->fetch_assoc()) {
+					if(!empty($keyField) && isset($row[$keyField])){
+						$return[$row[$keyField]] = $row;
+					} else {
+						$return[] = $row;
+					}
 				}
+				$result->free();
 			}
 			return $return;
 		}		
@@ -130,7 +163,7 @@ namespace TiMMiT\MySQL;
      * @return int
      */	
 		public static function _insertQuery($query) {
-			mysqli_query(self::$mlink,$query) or trigger_error("Query Failed:<ul><li>errorno=" . mysqli_errno(self::$mlink) ."</li><li>error=" . mysqli_error(self::$mlink) . "</li><li>query= " . $query . "</li></ul>",E_USER_ERROR);
+			self::query($query);
 			return mysqli_insert_id(self::$mlink);
 		}
 		
@@ -140,11 +173,7 @@ namespace TiMMiT\MySQL;
      * @return boolean
      */			
 		public static function _checkTableExist($table) {
-			if(mysqli_num_rows(mysqli_query(self::$mlink,"SHOW TABLES LIKE '".$table."'"))) {
-			 	return true;
-			} else {
-				return false;	
-			}
+			return self::checkForResult("SHOW TABLES LIKE '".$table."'");
 		}
 
     /**
@@ -154,11 +183,7 @@ namespace TiMMiT\MySQL;
      * @return boolean
      */	
 		public static function _checkIfColumnExistInTable($table,$column) {
-			if(mysqli_num_rows(mysqli_query(self::$mlink,"SHOW COLUMNS FROM `".$table."` LIKE '".$column."';"))) {
-			 	return true;
-			} else {
-				return false;	
-			}
+			return self::checkForResult("SHOW COLUMNS FROM `".$table."` LIKE '".$column."';");
 		}
 
     /**
@@ -167,7 +192,7 @@ namespace TiMMiT\MySQL;
      * @return boolean
      */			
 		public static function _checkForResult($query) {
-			$result = mysqli_query(self::$mlink,$query) or trigger_error("Query Failed:<ul><li>errorno=" . mysqli_errno(self::$mlink) ."</li><li>error=" . mysqli_error(self::$mlink) . "</li><li>query= " . $query . "</li></ul>",E_USER_ERROR);
+			$result = self::selectQuery($query);
 			if (mysqli_num_rows(self::$mlink,$result) > 0) {
 				return true;
 			} else {
@@ -177,22 +202,15 @@ namespace TiMMiT\MySQL;
 
     /**
      * Check if field is Null
-     * @param string $table
-     * @param string $field
-     * @param string $primaryKeyFieldID
+     * @param string $table table where you want to check the field
+     * @param string $field colomn to check
+     * @param string $primaryKeyFieldID primary id
      * @return boolean
      */			
 		public static function _checkIsNull($table, $field, $primaryKeyFieldID) {
-			// var $table = De tabel waaruit je een veld wilt controleren
-			// var $field = De kolom waarin je een waarde wilt controleren
-			// var $primaryKeyFieldID is de ID van de regel waarin de kolom staat.
-			$primaryKeyFieldResult = mysqli_query(self::$mlink,"SHOW INDEX FROM ".$table);
+			$primaryKeyFieldResult = self::selectQuery("SHOW INDEX FROM ".$table);
 			$primaryKeyFieldRow = mysqli_fetch_array($primaryKeyFieldResult);
-			if(mysqli_num_rows(mysqli_query(self::$mlink,"SELECT ".$field." FROM ".$table." WHERE ".$primaryKeyFieldRow["Column_name"]." = ".$primaryKeyFieldID." AND ".$field." IS NULL"))) {
-			 	return true;
-			} else {
-				return false;	
-			}
+			return self::checkForResult("SELECT ".$field." FROM ".$table." WHERE ".$primaryKeyFieldRow["Column_name"]." = ".$primaryKeyFieldID." AND ".$field." IS NULL;");
 		}
 		
 		
