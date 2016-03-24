@@ -173,7 +173,7 @@ namespace TiMMiT\MySQL;
      * @return boolean
      */			
 		public static function _checkTableExist($table) {
-			return self::checkForResult("SHOW TABLES LIKE '".$table."'");
+			return self::checkForResult("SHOW TABLES LIKE '".$table."';");
 		}
 
     /**
@@ -193,7 +193,7 @@ namespace TiMMiT\MySQL;
      */			
 		public static function _checkForResult($query) {
 			$result = self::selectQuery($query);
-			if (mysqli_num_rows(self::$mlink,$result) > 0) {
+			if (mysqli_num_rows($result) > 0) {
 				return true;
 			} else {
 				return false;
