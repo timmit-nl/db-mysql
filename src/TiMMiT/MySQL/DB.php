@@ -192,7 +192,7 @@ namespace TiMMiT\MySQL;
      * @return boolean
      */			
 		public static function _checkForResult($query) {
-			$result = self::selectQuery($query);
+			$result = self::query($query);
 			if (mysqli_num_rows($result) > 0) {
 				return true;
 			} else {
@@ -208,7 +208,7 @@ namespace TiMMiT\MySQL;
      * @return boolean
      */			
 		public static function _checkIsNull($table, $field, $primaryKeyFieldID) {
-			$primaryKeyFieldResult = self::selectQuery("SHOW INDEX FROM ".$table);
+			$primaryKeyFieldResult = self::query("SHOW INDEX FROM ".$table);
 			$primaryKeyFieldRow = mysqli_fetch_array($primaryKeyFieldResult);
 			return self::checkForResult("SELECT ".$field." FROM ".$table." WHERE ".$primaryKeyFieldRow["Column_name"]." = ".$primaryKeyFieldID." AND ".$field." IS NULL;");
 		}
