@@ -396,7 +396,7 @@ namespace TiMMiT\MySQL;
 				//die();	    	
 	    	
         // Fetch the table column structure from the database
-        $tablefields = self::selectQuery("DESCRIBE {$table};");
+        $tablefields = self::selectQuery("DESCRIBE `{$table}`;");
 
         if(!$tablefields){
           continue;
