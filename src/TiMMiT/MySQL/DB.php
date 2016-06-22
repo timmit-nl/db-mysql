@@ -464,7 +464,7 @@ namespace TiMMiT\MySQL;
                 // Is actual field type different from the field type in query?
                 if ($tablefield['Type'] != $fieldtype) {
                     // Add a query to change the column type
-                    $cqueries[] = "ALTER TABLE {$table} CHANGE COLUMN {$tablefield['Field']} " . $cfields[strtolower($tablefield['Field'])];
+                    $cqueries[] = "ALTER TABLE `{$table}` CHANGE COLUMN {$tablefield['Field']} " . $cfields[strtolower($tablefield['Field'])];
                     $for_update[$table.'.'.$tablefield['Field']] = "Changed type of {$table}.{$tablefield['Field']} from {$tablefield['Type']} to {$fieldtype}";
                 }
  
@@ -475,7 +475,7 @@ namespace TiMMiT\MySQL;
                     $default_value = $matches[1];
                     if ($tablefield['Default'] != $default_value) {
                         // Add a query to change the column's default value
-                        $cqueries[] = "ALTER TABLE {$table} ALTER COLUMN {$tablefield['Field']} SET DEFAULT '{$default_value}'";
+                        $cqueries[] = "ALTER TABLE `{$table}` ALTER COLUMN {$tablefield['Field']} SET DEFAULT '{$default_value}'";
                         $for_update[$table.'.'.$tablefield['Field']] = "Changed default value of {$table}.{$tablefield['Field']} from {$tablefield['Default']} to {$default_value}";
                     }
                 }
@@ -492,12 +492,12 @@ namespace TiMMiT\MySQL;
         // For every remaining field specified for the table.
         foreach ($cfields as $fieldname => $fielddef) {
             // Push a query line into $cqueries that adds the field to that table.
-            $cqueries[] = "ALTER TABLE {$table} ADD COLUMN $fielddef";
+            $cqueries[] = "ALTER TABLE `{$table}` ADD COLUMN $fielddef";
             $for_update[$table.'.'.$fieldname] = 'Added column '.$table.'.'.$fieldname;
         }
  
         // Index stuff goes here. Fetch the table index structure from the database.
-        $tableindices = self::selectQuery("SHOW INDEX FROM {$table};");
+        $tableindices = self::selectQuery("SHOW INDEX FROM `{$table}`;");
  
         if ($tableindices) {
             // Clear the index array.
@@ -577,7 +577,7 @@ namespace TiMMiT\MySQL;
         // For every remaining index specified for the table.
         foreach ( (array) $indices as $index ) {
             // Push a query line into $cqueries that adds the index to that table.
-            $cqueries[] = "ALTER TABLE {$table} ADD $index";
+            $cqueries[] = "ALTER TABLE `{$table}` ADD $index";
             $for_update[] = 'Added index ' . $table . ' ' . $index;
         }
  
