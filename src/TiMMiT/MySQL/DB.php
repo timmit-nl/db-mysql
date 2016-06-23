@@ -457,11 +457,11 @@ namespace TiMMiT\MySQL;
             if (array_key_exists(strtolower($tablefield['Field']), $cfields)) {
   
                 // Get the field type from the query.
-                preg_match("|".$tablefield['Field']." ([^ ]*( unsigned)?)|i", $cfields[strtolower($tablefield['Field'])], $matches);
+                preg_match("|".$tablefield['Field']." ([^ ]*( unsigned)*( zerofill)?)|i", $cfields[strtolower($tablefield['Field'])], $matches);
+								//echo "<hr/><pre>\n".print_r(array("|".$tablefield['Field']." ([^ ]*( unsigned)*( zerofill)?)|i", $cfields[strtolower($tablefield['Field'])],$matches), true)."</pre><hr/>";
 
-				        //echo "<hr/><pre>\n".print_r(array("|".$tablefield['Field']." ([^ ]*( unsigned)?)|i", $cfields[strtolower($tablefield['Field'])],$matches), true)."</pre><hr/>";
                 $fieldtype = $matches[1];
-
+								
                 // Is actual field type different from the field type in query?
                 if ($tablefield['Type'] != $fieldtype) {
                     // Add a query to change the column type
