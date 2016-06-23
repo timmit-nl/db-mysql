@@ -372,7 +372,7 @@ namespace TiMMiT\MySQL;
     	foreach ($queries as $qry) {
         if ( preg_match( "|CREATE TABLE ([^ ]*)|", $qry, $matches ) ) {
             $cqueries[ trim( $matches[1], '`' ) ] = $qry;
-            $for_update[$matches[1]] = 'Created table '.$matches[1];
+            $for_update[trim( $matches[1], '`' )] = 'Created table '.$matches[1];
         } elseif ( preg_match( "|CREATE DATABASE ([^ ]*)|", $qry, $matches ) ) {
             array_unshift( $cqueries, $qry );
         } elseif ( preg_match( "|INSERT INTO ([^ ]*)|", $qry, $matches ) ) {
@@ -445,6 +445,7 @@ namespace TiMMiT\MySQL;
               $cfields[strtolower($fieldname)] = trim($fld, ", \n");
             }
         }
+        
         //echo "<hr/><pre>\n".print_r($cfields, true)."</pre><hr/>";
         //echo "<hr/><pre>\n".print_r($tablefields, true)."</pre><hr/>";
         //die();
@@ -464,7 +465,7 @@ namespace TiMMiT\MySQL;
                 // Is actual field type different from the field type in query?
                 if ($tablefield['Type'] != $fieldtype) {
                     // Add a query to change the column type
-                    $cqueries[] = "ALTER TABLE `{$table}` CHANGE COLUMN {$tablefield['Field']} " . $cfields[strtolower($tablefield['Field'])];
+                    $cqueries[] = "ALTER TABLE `{$table}` CHANGE COLUMN `{$tablefield['Field']}` " . $cfields[strtolower($tablefield['Field'])];
                     $for_update[$table.'.'.$tablefield['Field']] = "Changed type of {$table}.{$tablefield['Field']} from {$tablefield['Type']} to {$fieldtype}";
                 }
  
@@ -475,7 +476,7 @@ namespace TiMMiT\MySQL;
                     $default_value = $matches[1];
                     if ($tablefield['Default'] != $default_value) {
                         // Add a query to change the column's default value
-                        $cqueries[] = "ALTER TABLE `{$table}` ALTER COLUMN {$tablefield['Field']} SET DEFAULT '{$default_value}'";
+                        $cqueries[] = "ALTER TABLE `{$table}` ALTER COLUMN `{$tablefield['Field']}` SET DEFAULT '{$default_value}'";
                         $for_update[$table.'.'.$tablefield['Field']] = "Changed default value of {$table}.{$tablefield['Field']} from {$tablefield['Default']} to {$default_value}";
                     }
                 }
