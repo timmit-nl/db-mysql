@@ -303,47 +303,37 @@ namespace TiMMiT\MySQL;
 		
     /**
      * Make where statement from parameters
-     * @param string|array $param      paramater or parameters as assoc array
-     * @param string $operator
-     * @param string $value
-     * @param string $divider_operator
+     * @param array $param      paramater or parameters as assoc array
+     * @param string $table
      * @return string
      */	
-     public static function _GetWhereFromParam($param=1,$operator='=',$value=1,$divider_operator='AND'){
-			if(is_array($param)){
+     public static function _GetWhereFromParam($param=1,$table=''){
+			if(is_array($param) && count($param)>0){
 				$where = "";
-				if(count($param)>0){
-					foreach($param as $par){
-						if(isset($par['divider_operator'])){
-							$divider_operator = $par['divider_operator'];
-						}
-						if(is_array(@$par['param'])){
-							//var_dump($par['param']);
-							$where .= '('.self::GetWhereFromParam($par['param']).') '.self::Clean4DB($divider_operator)." ";
-						} else {
-							$value = self::Clean4DB(@$par['value']);
-							$value = str_replace('\_',"_",$value);
-							$value = str_replace('*',"%",$value);
-						
-							$where .= "`".str_replace('\_',"_",self::Clean4DB(@$par['param']))."` ".self::Clean4DB(@$par['operator'])." '".$value."' ".self::Clean4DB($divider_operator)." ";
-						}
-					}
+				$divider_operator = 'AND';
+				foreach($param as $par){
 					if(isset($par['divider_operator'])){
 						$divider_operator = $par['divider_operator'];
 					}
-					$where = substr($where, 0, (0-strlen(" ".self::Clean4DB($divider_operator)." ")));					
-				} else {
-					$where = "1=1";
+					if(is_array(@$par['param'])){
+						//var_dump($par['param']);
+						$where .= '('.self::GetWhereFromParam($par['param'],$table).') '.self::Clean4DB($divider_operator)." ";
+					} else {
+						$value = self::Clean4DB(@$par['value']);
+						$value = str_replace('\_',"_",$value);
+						$value = str_replace('*',"%",$value);
+						if(!empty($table)){
+							$where .= "`".$table."`.";
+						}
+						$where .= "`".self::Clean4DB(@$par['param'],1)."` ".self::Clean4DB(@$par['operator'])." '".$value."' ".self::Clean4DB($divider_operator)." ";
+					}
 				}
+				if(isset($par['divider_operator'])){
+					$divider_operator = $par['divider_operator'];
+				}
+				$where = substr($where, 0, (0-strlen(" ".self::Clean4DB($divider_operator)." ")));					
 			} else {
-				if($param==1){
-					$where = "1".self::Clean4DB($operator).self::Clean4DB($value);
-				} else {
-					$value = self::Clean4DB($value);
-					$value = str_replace('\_',"_",$value);
-					$value = str_replace('*',"%",$value);
-					$where = "`".str_replace('\_',"_",self::Clean4DB($param))."` ".self::Clean4DB($operator)." '".self::Clean4DB($value)."'";
-				}
+				$where = "1=1";
 			}
 			return $where;
 		}
