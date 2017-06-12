@@ -586,6 +586,66 @@ namespace TiMMiT\MySQL;
 		}
 
 		/**
+		 * Clean variable from DB against slashes against SQL injection for export csv
+		 * @param string $value
+		 * @param string $value
+		 * @return void
+		 */
+		public static function CleanFromDB4Csv(&$value,$key) {
+			$value = self::CleanFromDB($value);
+		}
+
+		/**
+		 * Export function 2 csv
+		 * @param string $table table
+		 * @param array $fields if empty=* else array of fields
+		 * @param array $params params array for where
+		 * @param string $file path to file
+		 * @param boolean $return true return csv else return rows of csv
+		 * @param string $delimiter delimiter of csv default ;
+		 * @param string $enclosure enclosure of csv default "
+		 * @param string $escape_char escape_char of csv default \
+		 * @return int|string
+		 */
+		public static function _export2Csv($table,$fields=array(),$params=array(),$file=false,$return=true,$delimiter=';',$enclosure='"',$escape_char="\\") {
+			$fieldsTxt = '*';
+			if(!empty($fields) && is_array($fields)){
+				$fieldsArray = array();
+				foreach($fields as $field){
+					$fieldsArray[] = self::Clean4DB($field,1);
+				}
+				$fieldsTxt = implode(", ",$fieldsArray);
+			}
+			$query = "SELECT ".$fieldsTxt." FROM ".self::Clean4DB($table,1)." WHERE ".self::GetWhereFromParam($params).";";
+
+			if($file==false){
+				$filename = tempnam(sys_get_temp_dir(), 'CSV');
+			} else {
+				$filename = $file;
+			}
+			$fp = fopen($filename, 'w');
+
+			$result = self::query($query);
+			$a = 0;
+			if($result instanceof \mysqli_result){
+				while ($row = $result->fetch_assoc()) {
+					if($a==0){
+						fputcsv($fp, array_keys($row), $delimiter, $enclosure, $escape_char);
+					}
+					array_walk($row,array('self', 'CleanFromDB4Csv'));
+					fputcsv($fp, $row, $delimiter, $enclosure, $escape_char);
+					$a++;
+				}
+				$result->free();
+			}
+			fclose($fp);
+			if($return==true){
+				return file_get_contents($filename);
+			}
+			return $a;
+		}
+
+		/**
 		 * add item tot stats
 		 * @param string $queryType Soort Query
 		 * @return void
