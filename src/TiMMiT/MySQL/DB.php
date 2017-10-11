@@ -95,15 +95,21 @@ namespace TiMMiT\MySQL;
 		/**
 		 * Update Query function
 		 * @param string $query
+		 * @param int $resultmode
+		 * @param int $count
 		 * @return boolean
 		 */
-		private static function _query($query,$count=0) {
-			$result = mysqli_query(self::$mlink,$query);
+		private static function _query($query,$resultmode=NULL,$count=0) {
+			if(is_null($resultmode)){
+				$result = mysqli_query(self::$mlink,$query);
+			} else {
+				$result = mysqli_query(self::$mlink,$query,$resultmode);
+			}
 			if (!$result) {
 				$errorno = mysqli_errno(self::$mlink);
 				if ($errorno == 1213){
 					if($count < self::$max_deadlock_count){
-						self::query($query,($count+1));
+						self::query($query,$resultmode,($count+1));
 					} else {
 						trigger_error("Query Failed:<ul><li>errorno=" . mysqli_errno(self::$mlink) ."</li><li>failure_count=" . $count ." of max=" . self::$max_deadlock_count ." </li><li>error=" . mysqli_error(self::$mlink) . "</li><li>query=" . $query . "</li></ul>",E_USER_ERROR);
 					}
@@ -616,7 +622,11 @@ namespace TiMMiT\MySQL;
 				}
 				$fieldsTxt = implode(", ",$fieldsArray);
 			}
-			$query = "SELECT ".$fieldsTxt." FROM ".self::Clean4DB($table,1)." WHERE ".self::GetWhereFromParam($params).";";
+			$query = "SELECT ".$fieldsTxt." FROM ".self::Clean4DB($table,1)." WHERE ".self::GetWhereFromParam($params);
+
+			$totalResult = DB::selectQuery("SELECT count(*) as `total` FROM ".self::Clean4DB($table,1)." WHERE ".self::GetWhereFromParam($params).";");
+			$total = $totalResult[0]['total'];
+			$chunk = 1000;
 
 			if($file==false){
 				$filename = tempnam(sys_get_temp_dir(), 'CSV');
@@ -625,18 +635,24 @@ namespace TiMMiT\MySQL;
 			}
 			$fp = fopen($filename, 'w');
 
-			$result = self::query($query);
 			$a = 0;
-			if($result instanceof \mysqli_result){
-				while ($row = $result->fetch_assoc()) {
-					if($a==0){
-						fputcsv($fp, array_keys($row), $delimiter, $enclosure, $escape_char);
+
+			while($a<$total){
+				$query_limit = $query.' LIMIT '.$a.','.$chunk;
+
+				$result = self::query($query_limit);
+
+				if($result instanceof \mysqli_result){
+					while ($row = $result->fetch_assoc()) {
+						if($a==0){
+							fputcsv($fp, array_keys($row), $delimiter, $enclosure, $escape_char);
+						}
+						array_walk($row,array('self', 'CleanFromDB4Csv'));
+						fputcsv($fp, $row, $delimiter, $enclosure, $escape_char);
+						$a++;
 					}
-					array_walk($row,array('self', 'CleanFromDB4Csv'));
-					fputcsv($fp, $row, $delimiter, $enclosure, $escape_char);
-					$a++;
+					$result->free();
 				}
-				$result->free();
 			}
 			fclose($fp);
 			if($return==true){
