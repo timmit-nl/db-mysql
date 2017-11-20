@@ -606,14 +606,14 @@ namespace TiMMiT\MySQL;
 		 * @param string $table table
 		 * @param array $fields if empty=* else array of fields
 		 * @param array $params params array for where
-		 * @param string $file path to file
+		 * @param string|boolean $file path to file, false to tempfile
 		 * @param boolean $return true return csv else return rows of csv
 		 * @param string $delimiter delimiter of csv default ;
 		 * @param string $enclosure enclosure of csv default "
 		 * @param string $escape_char escape_char of csv default \
 		 * @return int|string
 		 */
-		public static function _export2Csv($table,$fields=array(),$params=array(),$file=false,$return=true,$delimiter=';',$enclosure='"',$escape_char="\\") {
+		public static function _export2Csv($table,$fields=array(),$params=array(),$file=false,$return=false,$delimiter=';',$enclosure='"',$escape_char="\\") {
 			$fieldsTxt = '*';
 			if(!empty($fields) && is_array($fields)){
 				$fieldsArray = array();
@@ -630,6 +630,7 @@ namespace TiMMiT\MySQL;
 
 			if($file==false){
 				$filename = tempnam(sys_get_temp_dir(), 'CSV');
+				$return = true;
 			} else {
 				$filename = $file;
 			}
