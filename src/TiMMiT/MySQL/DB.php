@@ -46,7 +46,7 @@ namespace TiMMiT\MySQL;
 		 *
 		 * @var string
 		 */
-		public static $charset = "utf8";
+		public static $charset = "utf8mb4";
 
 		/**
 		* Class constructor.
@@ -88,7 +88,7 @@ namespace TiMMiT\MySQL;
 		public static function _connect() {
 			self::$mlink = mysqli_connect(self::$var["host"], self::$var["username"], self::$var["password"], self::$var["database"], (int)self::$var["port"]) or trigger_error("Connection Failed: kon geen verbinding maken met de database!",E_USER_ERROR);
 			if (self::$mlink) {
-				mysqli_set_charset(self::$mlink,'utf8');
+				mysqli_set_charset(self::$mlink,self::$charset);
 			}
 		}
 
