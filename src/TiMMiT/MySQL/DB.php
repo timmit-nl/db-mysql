@@ -29,6 +29,20 @@ namespace TiMMiT\MySQL;
 		public static $max_deadlock_count = 5;
 
 		/**
+		 * Max tries before failure by gone away
+		 *
+		 * @var int
+		 */
+		public static $max_goneaway_count = 5;
+
+		/**
+		 * Max tries before failure by gone away
+		 *
+		 * @var int
+		 */
+		public static $max_goneaway_wait = 5;
+
+		/**
 		 * The stats vars.
 		 *
 		 * @var array
@@ -107,14 +121,27 @@ namespace TiMMiT\MySQL;
 			}
 			if (!$result) {
 				$errorno = mysqli_errno(self::$mlink);
-				if ($errorno == 1213){
-					if($count < self::$max_deadlock_count){
-						self::query($query,$resultmode,($count+1));
-					} else {
-						trigger_error("Query Failed:<ul><li>errorno=" . mysqli_errno(self::$mlink) ."</li><li>failure_count=" . $count ." of max=" . self::$max_deadlock_count ." </li><li>error=" . mysqli_error(self::$mlink) . "</li><li>query=" . $query . "</li></ul>",E_USER_ERROR);
-					}
-				} else {
-					trigger_error("Query Failed:<ul><li>errorno=" . mysqli_errno(self::$mlink) ."</li><li>error=" . mysqli_error(self::$mlink) . "</li><li>query= " . $query . "</li></ul>",E_USER_ERROR);
+				switch($errorno){
+					case 1213:
+						if($count < self::$max_deadlock_count){
+							self::query($query,$resultmode,($count+1));
+						} else {
+							trigger_error("Query Failed:<ul><li>errorno=" . mysqli_errno(self::$mlink) ."</li><li>failure_count=" . $count ." of max=" . self::$max_deadlock_count ." </li><li>error=" . mysqli_error(self::$mlink) . "</li><li>query=" . $query . "</li></ul>",E_USER_ERROR);
+						}
+						break;
+					case 2006:
+						if($count < self::$max_goneaway_count){
+							mysqli_close(self::$mlink);
+							sleep(self::$max_goneaway_wait);
+							self::connect();
+							self::query($query,$resultmode,($count+1));
+						} else {
+							trigger_error("Query Failed:<ul><li>errorno=" . mysqli_errno(self::$mlink) ."</li><li>failure_count=" . $count ." of max=" . self::$max_deadlock_count ." </li><li>error=" . mysqli_error(self::$mlink) . "</li><li>query=" . $query . "</li></ul>",E_USER_ERROR);
+						}
+						break;
+					default:
+						trigger_error("Query Failed:<ul><li>errorno=" . mysqli_errno(self::$mlink) ."</li><li>error=" . mysqli_error(self::$mlink) . "</li><li>query= " . $query . "</li></ul>",E_USER_ERROR);
+						break;
 				}
 			}
 			return $result;
