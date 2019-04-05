@@ -93,6 +93,23 @@ namespace TiMMiT\MySQL;
 		}
 
 		/**
+		 * Disconnect to DB
+		 * @return void
+		 */
+		public static function _disconnect() {
+			return mysqli_close(self::$mlink);
+		}
+
+		/**
+		 * reconnect to DB
+		 * @return void
+		 */
+		public static function _reconnect() {
+			self::disconnect();
+			self::connect();
+		}
+
+		/**
 		 * Update Query function
 		 * @param string $query
 		 * @param int $resultmode
