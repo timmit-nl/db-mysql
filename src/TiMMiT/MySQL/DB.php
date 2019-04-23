@@ -29,6 +29,27 @@ namespace TiMMiT\MySQL;
 		public static $max_deadlock_count = 5;
 
 		/**
+		 * Sleep multiplier with a deadlock
+		 *
+		 * @var int
+		 */
+		public static $sleep_deadlock_multiplier = 1;
+
+		/**
+		 * Max tries before failure by gone away
+		 *
+		 * @var int
+		 */
+		public static $max_goneaway_count = 5;
+
+		/**
+		 * Sleep multiplier with a deadlock
+		 *
+		 * @var float
+		 */
+		public static $sleep_goneaway_multiplier = 1.5;
+
+		/**
 		 * The stats vars.
 		 *
 		 * @var array
@@ -97,7 +118,10 @@ namespace TiMMiT\MySQL;
 		 * @return void
 		 */
 		public static function _disconnect() {
-			return mysqli_close(self::$mlink);
+			if(!self::$mlink){
+				return mysqli_close(self::$mlink);
+			}
+			return true;
 		}
 
 		/**
@@ -124,14 +148,31 @@ namespace TiMMiT\MySQL;
 			}
 			if (!$result) {
 				$errorno = mysqli_errno(self::$mlink);
-				if ($errorno == 1213){
-					if($count < self::$max_deadlock_count){
-						self::query($query,$resultmode,($count+1));
-					} else {
-						trigger_error("Query Failed:<ul><li>errorno=" . mysqli_errno(self::$mlink) ."</li><li>failure_count=" . $count ." of max=" . self::$max_deadlock_count ." </li><li>error=" . mysqli_error(self::$mlink) . "</li><li>query=" . $query . "</li></ul>",E_USER_ERROR);
-					}
-				} else {
-					trigger_error("Query Failed:<ul><li>errorno=" . mysqli_errno(self::$mlink) ."</li><li>error=" . mysqli_error(self::$mlink) . "</li><li>query= " . $query . "</li></ul>",E_USER_ERROR);
+				switch($errorno){
+					case 1213:
+						if($count < self::$max_deadlock_count){
+							$count++;
+							usleep(($count*round(100000,1000000)*self::$sleep_deadlock_multiplier));
+							$result = self::query($query,$resultmode,($count+1));
+						} else {
+							trigger_error("Query Failed:<ul><li>errorno=" . $errorno ."</li><li>failure_count=" . $count ." of max=" . self::$max_deadlock_count ." </li><li>error=" . mysqli_error(self::$mlink) . "</li><li>query=" . $query . "</li></ul>",E_USER_ERROR);
+						}
+						break;
+					case 2006:
+					case 1047:
+						if($count < self::$max_goneaway_count){
+							mysqli_close(self::$mlink);
+							$count++;
+							usleep(($count*round(100000,1000000)*self::$sleep_goneaway_multiplier));
+							self::reconnect();
+							$result = self::query($query,$resultmode,$count);
+						} else {
+							trigger_error("Query Failed:<ul><li>errorno=" . $errorno ."</li><li>failure_count=" . $count ." of max=" . self::$max_goneaway_count ." </li><li>error=" . mysqli_error(self::$mlink) . "</li><li>query=" . $query . "</li></ul>",E_USER_ERROR);
+						}
+						break;
+					default:
+						trigger_error("Query Failed:<ul><li>errorno=" . $errorno ."</li><li>error=" . mysqli_error(self::$mlink) . "</li><li>query= " . $query . "</li></ul>",E_USER_ERROR);
+						break;
 				}
 			}
 			return $result;
