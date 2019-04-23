@@ -118,7 +118,10 @@ namespace TiMMiT\MySQL;
 		 * @return void
 		 */
 		public static function _disconnect() {
-			return mysqli_close(self::$mlink);
+			if(!self::$mlink){
+				return mysqli_close(self::$mlink);
+			}
+			return true;
 		}
 
 		/**
