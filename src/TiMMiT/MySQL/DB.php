@@ -90,8 +90,6 @@ namespace TiMMiT\MySQL;
 			return forward_static_call_array(array(__CLASS__,'_'.$name),$arguments);
 		}
 
-
-
 		/**
 		 * throw Exception
 		 * @param string $message
@@ -99,7 +97,7 @@ namespace TiMMiT\MySQL;
 		 * @return boolean
 		 */
 		function throwException($message = null,$code = null) {
-			throw new Exception($message,$code);
+			throw new \Exception($message,$code);
 		}
 
 		/**
