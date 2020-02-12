@@ -81,16 +81,6 @@ namespace TiMMiT\MySQL;
 		}
 
 		/**
-		* static function to run before called function is run
-		* @param string $name
-		* @param array $arguments
-		*/
-		public static function __callStatic($name, $arguments) {
-			self::Add2Stats($name);
-			return forward_static_call_array(array(__CLASS__,'_'.$name),$arguments);
-		}
-
-		/**
 		 * throw Exception
 		 * @param string $message
 		 * @param string $code
@@ -104,7 +94,8 @@ namespace TiMMiT\MySQL;
 		 * Connect to DB
 		 * @return void
 		 */
-		public static function _connect() {
+		public static function connect() {
+			self::addToStats(__FUNCTION__);
 			self::$mlink = mysqli_connect(self::$var["host"], self::$var["username"], self::$var["password"], self::$var["database"], (int)self::$var["port"]) or trigger_error("Connection Failed: kon geen verbinding maken met de database!",E_USER_ERROR);
 			if (self::$mlink) {
 				mysqli_set_charset(self::$mlink,self::$charset);
@@ -115,7 +106,8 @@ namespace TiMMiT\MySQL;
 		 * Disconnect to DB
 		 * @return void
 		 */
-		public static function _disconnect() {
+		public static function disconnect() {
+			self::addToStats(__FUNCTION__);
 			if(!self::$mlink){
 				return mysqli_close(self::$mlink);
 			}
@@ -126,7 +118,8 @@ namespace TiMMiT\MySQL;
 		 * reconnect to DB
 		 * @return void
 		 */
-		public static function _reconnect() {
+		public static function reconnect() {
+			self::addToStats(__FUNCTION__);
 			self::disconnect();
 			self::connect();
 		}
@@ -138,7 +131,8 @@ namespace TiMMiT\MySQL;
 		 * @param int $count
 		 * @return boolean
 		 */
-		private static function _query($query,$resultmode=NULL,$count=0) {
+		private static function query($query,$resultmode=NULL,$count=0) {
+			self::addToStats(__FUNCTION__);
 			if(is_null($resultmode)){
 				$result = mysqli_query(self::$mlink,$query);
 			} else {
@@ -181,7 +175,8 @@ namespace TiMMiT\MySQL;
 		 * @param string $query
 		 * @return boolean
 		 */
-		public static function _updateQuery($query) {
+		public static function updateQuery($query) {
+			self::addToStats(__FUNCTION__);
 			return self::query($query);
 		}
 
@@ -190,7 +185,8 @@ namespace TiMMiT\MySQL;
 		 * @param string $query
 		 * @return boolean
 		 */
-		public static function _deleteQuery($query) {
+		public static function deleteQuery($query) {
+			self::addToStats(__FUNCTION__);
 			return self::query($query);
 		}
 
@@ -200,7 +196,8 @@ namespace TiMMiT\MySQL;
 		 * @param string $keyField
 		 * @return array
 		 */
-		public static function _selectQuery($query,$keyField='') {
+		public static function selectQuery($query,$keyField='') {
+			self::addToStats(__FUNCTION__);
 			$result = self::query($query);
 			$return = array();
 			if($result instanceof \mysqli_result){
@@ -222,7 +219,8 @@ namespace TiMMiT\MySQL;
 		 * @param string $query
 		 * @return int
 		 */
-		public static function _insertQuery($query) {
+		public static function insertQuery($query) {
+			self::addToStats(__FUNCTION__);
 			self::query($query);
 			return mysqli_insert_id(self::$mlink);
 		}
@@ -232,7 +230,8 @@ namespace TiMMiT\MySQL;
 		 * @param string $table
 		 * @return boolean
 		 */
-		public static function _checkTableExist($table) {
+		public static function checkTableExist($table) {
+			self::addToStats(__FUNCTION__);
 			return self::checkForResult("SHOW TABLES LIKE '".$table."';");
 		}
 
@@ -242,7 +241,8 @@ namespace TiMMiT\MySQL;
 		 * @param string $column
 		 * @return boolean
 		 */
-		public static function _checkIfColumnExistInTable($table,$column) {
+		public static function checkIfColumnExistInTable($table,$column) {
+			self::addToStats(__FUNCTION__);
 			return self::checkForResult("SHOW COLUMNS FROM `".$table."` LIKE '".$column."';");
 		}
 
@@ -251,7 +251,8 @@ namespace TiMMiT\MySQL;
 		 * @param string $query
 		 * @return boolean
 		 */
-		public static function _checkForResult($query) {
+		public static function checkForResult($query) {
+			self::addToStats(__FUNCTION__);
 			$result = self::query($query);
 			if (mysqli_num_rows($result) > 0) {
 				return true;
@@ -267,7 +268,8 @@ namespace TiMMiT\MySQL;
 		 * @param string $primaryKeyFieldID primary id
 		 * @return boolean
 		 */
-		public static function _checkIsNull($table, $field, $primaryKeyFieldID) {
+		public static function checkIsNull($table, $field, $primaryKeyFieldID) {
+			self::addToStats(__FUNCTION__);
 			$primaryKeyFieldResult = self::query("SHOW INDEX FROM ".$table);
 			$primaryKeyFieldRow = mysqli_fetch_array($primaryKeyFieldResult);
 			return self::checkForResult("SELECT ".$field." FROM ".$table." WHERE ".$primaryKeyFieldRow["Column_name"]." = ".$primaryKeyFieldID." AND ".$field." IS NULL;");
@@ -275,12 +277,16 @@ namespace TiMMiT\MySQL;
 
 
 		/**
-		 * Clean variable for DB against SQL injection
+		 * clean variable for DB against SQL injection
 		 * @param string $value
 		 * @param boolean $key default false
 		 * @return string
 		 */
-		public static function _Clean4DB($value,$key=false) {
+		public static function clean4DB($value,$key=false) {
+			self::addToStats(__FUNCTION__);
+			if(is_object($value)){
+				trigger_error('is object:'.var_export($value,true));				
+			}
 			$value = addcslashes(mysqli_real_escape_string(self::$mlink,$value), "%_");
 			if($key!=false){
 				$value = str_replace('\_',"_",$value);
@@ -289,11 +295,12 @@ namespace TiMMiT\MySQL;
 		}
 
 		/**
-		 * Clean variable from DB against slashes against SQL injection
+		 * clean variable from DB against slashes against SQL injection
 		 * @param string $value
 		 * @return string
 		 */
-		public static function _CleanFromDB($value) {
+		public static function cleanFromDB($value) {
+			self::addToStats(__FUNCTION__);
 			$value = stripcslashes($value);
 			return $value;
 		}
@@ -306,7 +313,8 @@ namespace TiMMiT\MySQL;
 		 * @param string $add
 		 * @return string
 		 */
-		public static function _MakeID($hash='',$len=1,$seed="",$add=''){
+		public static function makeID($hash='',$len=1,$seed="",$add=''){
+			self::addToStats(__FUNCTION__);
 			switch($hash):
 				default:
 					$hash = 'sha1';
@@ -357,7 +365,8 @@ namespace TiMMiT\MySQL;
 		 * Get the Charset of connection
 		 * @return string
 		 */
-		public static function _GetCharSet() {
+		public static function getCharSet() {
+			self::addToStats(__FUNCTION__);
 			return mysqli_character_set_name(self::$mlink);
 		}
 
@@ -367,7 +376,8 @@ namespace TiMMiT\MySQL;
 		 * @param string $table
 		 * @return string
 		 */
-		 public static function _GetWhereFromParam($param=1,$table=''){
+		 public static function getWhereFromParam($param=1,$table=''){
+			self::addToStats(__FUNCTION__);
 			if(is_array($param) && count($param)>0){
 				$where = "";
 				$divider_operator = 'AND';
@@ -377,21 +387,21 @@ namespace TiMMiT\MySQL;
 					}
 					if(is_array(@$par['param'])){
 						//var_dump($par['param']);
-						$where .= '('.self::GetWhereFromParam($par['param'],$table).') '.self::Clean4DB($divider_operator)." ";
+						$where .= '('.self::getWhereFromParam($par['param'],$table).') '.self::clean4DB($divider_operator)." ";
 					} else {
-						$value = self::Clean4DB(@$par['value']);
+						$value = self::clean4DB(@$par['value']);
 						$value = str_replace('\_',"_",$value);
 						$value = str_replace('*',"%",$value);
 						if(!empty($table)){
 							$where .= "`".$table."`.";
 						}
-						$where .= "`".self::Clean4DB(@$par['param'],1)."` ".self::Clean4DB(@$par['operator'])." '".$value."' ".self::Clean4DB($divider_operator)." ";
+						$where .= "`".self::clean4DB(@$par['param'],1)."` ".self::clean4DB(@$par['operator'])." '".$value."' ".self::clean4DB($divider_operator)." ";
 					}
 				}
 				if(isset($par['divider_operator'])){
 					$divider_operator = $par['divider_operator'];
 				}
-				$where = substr($where, 0, (0-strlen(" ".self::Clean4DB($divider_operator)." ")));
+				$where = substr($where, 0, (0-strlen(" ".self::clean4DB($divider_operator)." ")));
 			} else {
 				$where = "1=1";
 			}
@@ -399,7 +409,8 @@ namespace TiMMiT\MySQL;
 		}
 
 
-		public static function _dbDelta( $queries = '', $execute = true ) {
+		public static function dbDelta( $queries = '', $execute = true ) {
+			self::addToStats(__FUNCTION__);
 			// Separate individual queries into an array
 			if ( !is_array($queries) ) {
 				$queries = explode( ';', $queries );
@@ -648,13 +659,14 @@ namespace TiMMiT\MySQL;
 		}
 
 		/**
-		 * Clean variable from DB against slashes against SQL injection for export csv
+		 * clean variable from DB against slashes against SQL injection for export csv
 		 * @param string $value
 		 * @param string $value
 		 * @return void
 		 */
-		public static function CleanFromDB4Csv(&$value,$key) {
-			$value = self::CleanFromDB($value);
+		public static function cleanFromDB4Csv(&$value,$key) {
+			self::addToStats(__FUNCTION__);
+			$value = self::cleanFromDB($value);
 		}
 
 		/**
@@ -669,18 +681,19 @@ namespace TiMMiT\MySQL;
 		 * @param string $escape_char escape_char of csv default \
 		 * @return int|string
 		 */
-		public static function _export2Csv($table,$fields=array(),$params=array(),$file=false,$return=false,$delimiter=';',$enclosure='"',$escape_char="\\") {
+		public static function export2Csv($table,$fields=array(),$params=array(),$file=false,$return=false,$delimiter=';',$enclosure='"',$escape_char="\\") {
+			self::addToStats(__FUNCTION__);
 			$fieldsTxt = '*';
 			if(!empty($fields) && is_array($fields)){
 				$fieldsArray = array();
 				foreach($fields as $field){
-					$fieldsArray[] = self::Clean4DB($field,1);
+					$fieldsArray[] = self::clean4DB($field,1);
 				}
 				$fieldsTxt = implode(", ",$fieldsArray);
 			}
-			$query = "SELECT ".$fieldsTxt." FROM ".self::Clean4DB($table,1)." WHERE ".self::GetWhereFromParam($params);
+			$query = "SELECT ".$fieldsTxt." FROM ".self::clean4DB($table,1)." WHERE ".self::getWhereFromParam($params);
 
-			$totalResult = DB::selectQuery("SELECT count(*) as `total` FROM ".self::Clean4DB($table,1)." WHERE ".self::GetWhereFromParam($params).";");
+			$totalResult = DB::selectQuery("SELECT count(*) as `total` FROM ".self::clean4DB($table,1)." WHERE ".self::getWhereFromParam($params).";");
 			$total = $totalResult[0]['total'];
 			$chunk = 1000;
 
@@ -704,7 +717,7 @@ namespace TiMMiT\MySQL;
 						if($a==0){
 							fputcsv($fp, array_keys($row), $delimiter, $enclosure, $escape_char);
 						}
-						array_walk($row,array('self', 'CleanFromDB4Csv'));
+						array_walk($row,array('self', 'cleanFromDB4Csv'));
 						fputcsv($fp, $row, $delimiter, $enclosure, $escape_char);
 						$a++;
 					}
@@ -723,7 +736,7 @@ namespace TiMMiT\MySQL;
 		 * @param string $queryType Soort Query
 		 * @return void
 		 */
-		private static function Add2Stats($queryType=''){
+		private static function addToStats($queryType=''){
 			if(!isset(self::$stats[$queryType])){
 				self::$stats[$queryType] = 0;
 			}
@@ -734,7 +747,7 @@ namespace TiMMiT\MySQL;
 		 * get the stats
 		 * @return array stats
 		 */
-		public static function GetStats(){
+		public static function getStats(){
 			return self::$stats;
 		}
 
