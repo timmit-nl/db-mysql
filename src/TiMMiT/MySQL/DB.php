@@ -115,7 +115,9 @@ namespace TiMMiT\MySQL;
 		 */
 		public static function connect() {
 			self::addToStats(__FUNCTION__);
+
 			mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
+
 			try{
 				self::$mlink = mysqli_connect(self::$var["host"], self::$var["username"], self::$var["password"], self::$var["database"], (int)self::$var["port"]);
 			} catch(\mysqli_sql_exception $e){
@@ -126,6 +128,9 @@ namespace TiMMiT\MySQL;
 					throw new \mysqli_sql_exception($e->getMessage(), $e->getCode());
 				}
 			}
+
+			mysqli_report(MYSQLI_REPORT_OFF); // back to normal reporting
+
 			if (self::$mlink) {
 				mysqli_set_charset(self::$mlink,self::$charset);
 			}
