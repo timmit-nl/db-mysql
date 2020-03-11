@@ -22,6 +22,20 @@ namespace TiMMiT\MySQL;
 		public static $var = array();
 
 		/**
+		 * The config fallback vars.
+		 *
+		 * @var array
+		 */
+		public static $fallback = array();
+
+		/**
+		 * The backup active boolean.
+		 *
+		 * @var boolean
+		 */
+		public static $fallbackActive = false;
+
+		/**
 		 * Max tries before failure by deadlock
 		 *
 		 * @var int
@@ -71,13 +85,18 @@ namespace TiMMiT\MySQL;
 
 		/**
 		* Class constructor.
-		* @param array $array      settings as assoc array
+		* @param array $configVar      settings as assoc array
+		* @param array $fallbackVar      settings as assoc array
+		* @return void
 		*/
-		function __construct($array) {
-			if (is_array($array)) {
-				self::$var = $array;
-				self::connect();
+		function __construct($configVar,$fallbackVar=array()) {
+			if (is_array($configVar)) {
+				self::$var = $configVar;
 			}
+			if (is_array($fallbackVar)) {
+				self::$fallback = $fallbackVar;
+			}
+			self::connect();
 		}
 
 		/**
@@ -96,7 +115,22 @@ namespace TiMMiT\MySQL;
 		 */
 		public static function connect() {
 			self::addToStats(__FUNCTION__);
-			self::$mlink = mysqli_connect(self::$var["host"], self::$var["username"], self::$var["password"], self::$var["database"], (int)self::$var["port"]) or trigger_error("Connection Failed: kon geen verbinding maken met de database!",E_USER_ERROR);
+
+			mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
+
+			try{
+				self::$mlink = mysqli_connect(self::$var["host"], self::$var["username"], self::$var["password"], self::$var["database"], (int)self::$var["port"]);
+			} catch(\mysqli_sql_exception $e){
+				if(!empty(self::$fallback)){
+					self::$mlink = mysqli_connect(self::$fallback["host"], self::$fallback["username"], self::$fallback["password"], self::$fallback["database"], (int)self::$fallback["port"]);
+					self::$fallbackActive = true;
+				} else {
+					throw new \mysqli_sql_exception($e->getMessage(), $e->getCode());
+				}
+			}
+
+			mysqli_report(MYSQLI_REPORT_OFF); // back to normal reporting
+
 			if (self::$mlink) {
 				mysqli_set_charset(self::$mlink,self::$charset);
 			}
