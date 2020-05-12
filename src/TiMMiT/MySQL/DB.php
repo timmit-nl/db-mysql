@@ -36,6 +36,20 @@ namespace TiMMiT\MySQL;
 		public static $fallbackActive = false;
 
 		/**
+		 * The config write vars.
+		 *
+		 * @var array
+		 */
+		public static $write = array();
+
+		/**
+		 * The write active boolean.
+		 *
+		 * @var boolean
+		 */
+		public static $writeActive = false;
+
+		/**
 		 * Max tries before failure by deadlock
 		 *
 		 * @var int
@@ -77,6 +91,12 @@ namespace TiMMiT\MySQL;
 		public static $mlink;
 
 		/**
+		* Created DBwrite connection
+		* @var DB
+		*/
+		public static $mlinkWrite;
+
+		/**
 		 * The default charset.
 		 *
 		 * @var string
@@ -86,12 +106,16 @@ namespace TiMMiT\MySQL;
 		/**
 		* Class constructor.
 		* @param array $configVar      settings as assoc array
+		* @param array $writeVar      settings as assoc array
 		* @param array $fallbackVar      settings as assoc array
 		* @return void
 		*/
-		function __construct($configVar,$fallbackVar=array()) {
+		function __construct($configVar,$writeVar=array(),$fallbackVar=array()) {
 			if (is_array($configVar)) {
 				self::$var = $configVar;
+			}
+			if (is_array($writeVar)) {
+				self::$write = $writeVar;
 			}
 			if (is_array($fallbackVar)) {
 				self::$fallback = $fallbackVar;
@@ -119,11 +143,18 @@ namespace TiMMiT\MySQL;
 			mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 
 			try{
-				self::$mlink = mysqli_connect(self::$var["host"], self::$var["username"], self::$var["password"], self::$var["database"], (int)self::$var["port"]);
+				self::$mlink = mysqli_connect(self::$var['host'], self::$var['username'], self::$var['password'], self::$var['database'], (int)self::$var['port']);
+				self::$writeActive = false;
+				if(!empty(self::$write) && self::$var!=self::$write && !empty(self::$write['host'])){
+					self::$mlinkWrite = mysqli_connect(self::$write['host'], self::$write['username'], self::$write['password'], self::$write['database'], (int)self::$write['port']);
+					self::$writeActive = true;
+				}
 			} catch(\mysqli_sql_exception $e){
-				if(!empty(self::$fallback)){
-					self::$mlink = mysqli_connect(self::$fallback["host"], self::$fallback["username"], self::$fallback["password"], self::$fallback["database"], (int)self::$fallback["port"]);
+				if(!empty(self::$fallback) &&  !empty(self::$fallback['host'])){
+					self::$mlink = mysqli_connect(self::$fallback['host'], self::$fallback['username'], self::$fallback['password'], self::$fallback['database'], (int)self::$fallback['port']);
+
 					self::$fallbackActive = true;
+					self::$writeActive = false;
 				} else {
 					throw new \mysqli_sql_exception($e->getMessage(), $e->getCode());
 				}
@@ -134,6 +165,9 @@ namespace TiMMiT\MySQL;
 			if (self::$mlink) {
 				mysqli_set_charset(self::$mlink,self::$charset);
 			}
+			if (self::$writeActive && self::$mlinkWrite) {
+				mysqli_set_charset(self::$mlinkWrite,self::$charset);
+			}
 		}
 
 		/**
@@ -142,7 +176,10 @@ namespace TiMMiT\MySQL;
 		 */
 		public static function disconnect() {
 			self::addToStats(__FUNCTION__);
-			if(!self::$mlink){
+			if(self::$mlink){
+				if (self::$writeActive && self::$mlinkWrite) {
+					mysqli_close(self::$mlinkWrite);
+				}
 				return mysqli_close(self::$mlink);
 			}
 			return true;
@@ -161,25 +198,44 @@ namespace TiMMiT\MySQL;
 		/**
 		 * Update Query function
 		 * @param string $query
+		 * @param boolean $writeQuery
 		 * @param int $resultmode
 		 * @param int $count
 		 * @return boolean
 		 */
-		private static function query($query,$resultmode=NULL,$count=0) {
+		private static function query($query,$writeQuery=false,$resultmode=NULL,$count=0) {
+			if ($writeQuery && self::$writeActive && self::$mlinkWrite) {
+				$write = true;
+			} else {
+				$write = false;
+			}
+
 			self::addToStats(__FUNCTION__);
 			if(is_null($resultmode)){
-				$result = mysqli_query(self::$mlink,$query);
+				if($write){
+					$result = mysqli_query(self::$mlinkWrite,$query);
+				} else {
+					$result = mysqli_query(self::$mlink,$query);
+				}
 			} else {
-				$result = mysqli_query(self::$mlink,$query,$resultmode);
+				if($write){
+					$result = mysqli_query(self::$mlinkWrite,$query,$resultmode);
+				} else {
+					$result = mysqli_query(self::$mlink,$query,$resultmode);
+				}
 			}
 			if (!$result) {
-				$errorno = mysqli_errno(self::$mlink);
+				if($write){
+					$errorno = mysqli_errno(self::$mlinkWrite);
+				} else {
+					$errorno = mysqli_errno(self::$mlink);
+				}
 				switch($errorno){
 					case 1213:
 						if($count < self::$max_deadlock_count){
 							$count++;
 							usleep(($count*round(100000,1000000)*self::$sleep_deadlock_multiplier));
-							$result = self::query($query,$resultmode,($count+1));
+							$result = self::query($query,$write,$resultmode,($count+1));
 						} else {
 							trigger_error("Query Failed:<ul><li>errorno=" . $errorno ."</li><li>failure_count=" . $count ." of max=" . self::$max_deadlock_count ." </li><li>error=" . mysqli_error(self::$mlink) . "</li><li>query=" . $query . "</li></ul>",E_USER_ERROR);
 						}
@@ -187,11 +243,15 @@ namespace TiMMiT\MySQL;
 					case 2006:
 					case 1047:
 						if($count < self::$max_goneaway_count){
-							mysqli_close(self::$mlink);
+							if($write){
+								mysqli_close(self::$mlinkWrite);
+							} else {
+								mysqli_close(self::$mlink);
+							}
 							$count++;
 							usleep(($count*round(100000,1000000)*self::$sleep_goneaway_multiplier));
 							self::reconnect();
-							$result = self::query($query,$resultmode,$count);
+							$result = self::query($query,$write,$resultmode,$count);
 						} else {
 							trigger_error("Query Failed:<ul><li>errorno=" . $errorno ."</li><li>failure_count=" . $count ." of max=" . self::$max_goneaway_count ." </li><li>error=" . mysqli_error(self::$mlink) . "</li><li>query=" . $query . "</li></ul>",E_USER_ERROR);
 						}
@@ -211,7 +271,7 @@ namespace TiMMiT\MySQL;
 		 */
 		public static function updateQuery($query) {
 			self::addToStats(__FUNCTION__);
-			return self::query($query);
+			return self::query($query,true);
 		}
 
 		/**
@@ -221,7 +281,7 @@ namespace TiMMiT\MySQL;
 		 */
 		public static function deleteQuery($query) {
 			self::addToStats(__FUNCTION__);
-			return self::query($query);
+			return self::query($query,true);
 		}
 
 		/**
@@ -255,7 +315,7 @@ namespace TiMMiT\MySQL;
 		 */
 		public static function insertQuery($query) {
 			self::addToStats(__FUNCTION__);
-			self::query($query);
+			self::query($query,true);
 			return mysqli_insert_id(self::$mlink);
 		}
 
@@ -340,14 +400,14 @@ namespace TiMMiT\MySQL;
 		}
 
 		/**
-		 * Make a hashed ID from seed
+		 * Make a hashed Id from seed
 		 * @param string $hash
 		 * @param int $len
 		 * @param mix $seed
 		 * @param string $add
 		 * @return string
 		 */
-		public static function makeID($hash='',$len=1,$seed="",$add=''){
+		public static function makeId($hash='',$len=1,$seed="",$add=''){
 			self::addToStats(__FUNCTION__);
 			switch($hash):
 				default:
@@ -419,17 +479,25 @@ namespace TiMMiT\MySQL;
 					if(isset($par['divider_operator'])){
 						$divider_operator = $par['divider_operator'];
 					}
-					if(is_array(@$par['param'])){
-						//var_dump($par['param']);
-						$where .= '('.self::getWhereFromParam($par['param'],$table).') '.self::clean4DB($divider_operator)." ";
-					} else {
-						$value = self::clean4DB(@$par['value']);
-						$value = str_replace('\_',"_",$value);
-						$value = str_replace('*',"%",$value);
-						if(!empty($table)){
-							$where .= "`".$table."`.";
+					if(isset($par['param'])){
+						if(is_array($par['param'])){
+							//var_dump($par['param']);
+							$where .= '('.self::getWhereFromParam($par['param'],$table).') '.self::clean4DB($divider_operator)." ";
+						} else {
+							if(!isset($par['value'])){
+								$par['value'] = '';
+							}
+							if(!isset($par['operator'])){
+								$par['operator'] = '';
+							}
+							$value = self::clean4DB($par['value']);
+							$value = str_replace('\_',"_",$value);
+							$value = str_replace('*',"%",$value);
+							if(!empty($table)){
+								$where .= "`".$table."`.";
+							}
+							$where .= "`".self::clean4DB($par['param'],1)."` ".self::clean4DB($par['operator'])." '".$value."' ".self::clean4DB($divider_operator)." ";
 						}
-						$where .= "`".self::clean4DB(@$par['param'],1)."` ".self::clean4DB(@$par['operator'])." '".$value."' ".self::clean4DB($divider_operator)." ";
 					}
 				}
 				if(isset($par['divider_operator'])){
@@ -685,7 +753,7 @@ namespace TiMMiT\MySQL;
 					foreach ($allqueries as $query) {
 							// todo: Remove this?
 							//echo "<pre style=\"border:1px solid red;margin-top:5px;\">".print_r($query, true)."</pre>\n";
-							self::query($query);
+							self::query($query,true);
 					}
 			}
 			//die();
