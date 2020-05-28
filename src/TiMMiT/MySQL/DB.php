@@ -167,6 +167,7 @@ namespace TiMMiT\MySQL;
 			}
 			if (self::$writeActive && self::$mlinkWrite) {
 				mysqli_set_charset(self::$mlinkWrite,self::$charset);
+				mysqli_query(self::$mlink,"SET SESSION wsrep_sync_wait = 1;");
 			}
 		}
 
