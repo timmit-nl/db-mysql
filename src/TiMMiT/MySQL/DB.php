@@ -286,6 +286,17 @@ namespace TiMMiT\MySQL;
 		}
 
 		/**
+		 * execute a query without result function
+		 * @param string $query
+		 * @param boolean $writeNode
+		 * @return boolean
+		 */
+		public static function executeQuery($query,$writeNode=true) {
+			self::addToStats(__FUNCTION__);
+			return self::query($query,$writeNode);
+		}
+
+		/**
 		 * Select Query function
 		 * @param string $query
 		 * @param string $keyField
