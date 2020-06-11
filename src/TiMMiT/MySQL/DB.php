@@ -86,13 +86,13 @@ namespace TiMMiT\MySQL;
 
 		/**
 		* Created DB connection
-		* @var DB
+		* @var \mysqli|false
 		*/
 		public static $mlink;
 
 		/**
 		* Created DBwrite connection
-		* @var DB
+		* @var \mysqli|false
 		*/
 		public static $mlinkWrite;
 
@@ -173,7 +173,7 @@ namespace TiMMiT\MySQL;
 
 		/**
 		 * Disconnect to DB
-		 * @return void
+		 * @return boolean
 		 */
 		public static function disconnect() {
 			self::addToStats(__FUNCTION__);
@@ -415,7 +415,7 @@ namespace TiMMiT\MySQL;
 		 * Make a hashed Id from seed
 		 * @param string $hash
 		 * @param int $len
-		 * @param mix $seed
+		 * @param mixed $seed
 		 * @param string $add
 		 * @return string
 		 */
@@ -478,11 +478,11 @@ namespace TiMMiT\MySQL;
 
 		/**
 		 * Make where statement from parameters
-		 * @param array $param      paramater or parameters as assoc array
+		 * @param array|false $param      paramater or parameters as assoc array
 		 * @param string $table
 		 * @return string
 		 */
-		 public static function getWhereFromParam($param=1,$table=''){
+		 public static function getWhereFromParam($param=false,$table=''){
 			self::addToStats(__FUNCTION__);
 			if(is_array($param) && count($param)>0){
 				$where = "(";
@@ -527,6 +527,12 @@ namespace TiMMiT\MySQL;
 		}
 
 
+		/**
+		 * @param string $queries
+		 * @param boolean $execute
+		 *
+		 * @return array
+		 */
 		public static function dbDelta( $queries = '', $execute = true ) {
 			self::addToStats(__FUNCTION__);
 			// Separate individual queries into an array
