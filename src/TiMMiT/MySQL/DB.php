@@ -484,7 +484,7 @@ namespace TiMMiT\MySQL;
 		 */
 		 public static function getWhereFromParam($param=false,$table=''){
 			self::addToStats(__FUNCTION__);
-			if(is_array($param) && count($param)>0){
+			if(is_array($param) && !empty($param)){
 				$where = "(";
 				$divider_operator = 'AND';
 				foreach($param as $par){
@@ -492,26 +492,27 @@ namespace TiMMiT\MySQL;
 						$divider_operator = $par['divider_operator'];
 					}
 					if(isset($par['param'])){
-						if(is_array($par['param'])){
-							//var_dump($par['param']);
-							$where .= '('.self::getWhereFromParam($par['param'],$table).') '.self::clean4DB($divider_operator)." ";
-						} else {
-							if(!isset($par['value'])){
-								$par['value'] = '';
+						if(!empty($par['param'])){
+							if(is_array($par['param'])){
+								$where .= ''.self::getWhereFromParam($par['param'],$table).' '.self::clean4DB($divider_operator)." ";
+							} else {
+								if(!isset($par['value'])){
+									$par['value'] = '';
+								}
+								if(!isset($par['operator'])){
+									$par['operator'] = '';
+								}
+								$value = self::clean4DB($par['value']);
+								if(isset($par['dont_escape_special_characters']) && $par['dont_escape_special_characters']==true){
+									$value = str_replace('#',"_",$value);
+									$value = str_replace('\_',"_",$value);
+									$value = str_replace('*',"%",$value);
+								}
+								if(!empty($table)){
+									$where .= "`".$table."`.";
+								}
+								$where .= "`".self::clean4DB($par['param'],true)."` ".self::clean4DB($par['operator'])." '".$value."' ".self::clean4DB($divider_operator)." ";
 							}
-							if(!isset($par['operator'])){
-								$par['operator'] = '';
-							}
-							$value = self::clean4DB($par['value']);
-							if(isset($par['dont_escape_special_characters']) && $par['dont_escape_special_characters']==true){
-								$value = str_replace('#',"_",$value);
-								$value = str_replace('\_',"_",$value);
-								$value = str_replace('*',"%",$value);
-							}
-							if(!empty($table)){
-								$where .= "`".$table."`.";
-							}
-							$where .= "`".self::clean4DB($par['param'],true)."` ".self::clean4DB($par['operator'])." '".$value."' ".self::clean4DB($divider_operator)." ";
 						}
 					}
 				}
@@ -519,10 +520,13 @@ namespace TiMMiT\MySQL;
 					$divider_operator = $par['divider_operator'];
 				}
 				$where = substr($where, 0, (0-strlen(" ".self::clean4DB($divider_operator)." ")));
+				$where .= ")";
+				if($where==")"){
+					$where = "";
+				}
 			} else {
-				$where = "1=1";
+				$where = "(1=1)";
 			}
-			$where .= ")";
 			return $where;
 		}
 
