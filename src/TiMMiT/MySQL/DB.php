@@ -86,13 +86,13 @@ namespace TiMMiT\MySQL;
 
 		/**
 		* Created DB connection
-		* @var DB
+		* @var \mysqli|false
 		*/
 		public static $mlink;
 
 		/**
 		* Created DBwrite connection
-		* @var DB
+		* @var \mysqli|false
 		*/
 		public static $mlinkWrite;
 
@@ -173,7 +173,7 @@ namespace TiMMiT\MySQL;
 
 		/**
 		 * Disconnect to DB
-		 * @return void
+		 * @return boolean
 		 */
 		public static function disconnect() {
 			self::addToStats(__FUNCTION__);
@@ -410,7 +410,7 @@ namespace TiMMiT\MySQL;
 		 * Make a hashed Id from seed
 		 * @param string $hash
 		 * @param int $len
-		 * @param mix $seed
+		 * @param mixed $seed
 		 * @param string $add
 		 * @return string
 		 */
@@ -473,37 +473,41 @@ namespace TiMMiT\MySQL;
 
 		/**
 		 * Make where statement from parameters
-		 * @param array $param      paramater or parameters as assoc array
+		 * @param array|false $param      paramater or parameters as assoc array
 		 * @param string $table
 		 * @return string
 		 */
-		 public static function getWhereFromParam($param=1,$table=''){
+		 public static function getWhereFromParam($param=false,$table=''){
 			self::addToStats(__FUNCTION__);
-			if(is_array($param) && count($param)>0){
-				$where = "";
+			if(is_array($param) && !empty($param)){
+				$where = "(";
 				$divider_operator = 'AND';
 				foreach($param as $par){
 					if(isset($par['divider_operator'])){
 						$divider_operator = $par['divider_operator'];
 					}
 					if(isset($par['param'])){
-						if(is_array($par['param'])){
-							//var_dump($par['param']);
-							$where .= '('.self::getWhereFromParam($par['param'],$table).') '.self::clean4DB($divider_operator)." ";
-						} else {
-							if(!isset($par['value'])){
-								$par['value'] = '';
+						if(!empty($par['param'])){
+							if(is_array($par['param'])){
+								$where .= ''.self::getWhereFromParam($par['param'],$table).' '.self::clean4DB($divider_operator)." ";
+							} else {
+								if(!isset($par['value'])){
+									$par['value'] = '';
+								}
+								if(!isset($par['operator'])){
+									$par['operator'] = '';
+								}
+								$value = self::clean4DB($par['value']);
+								if(isset($par['dont_escape_special_characters']) && $par['dont_escape_special_characters']==true){
+									$value = str_replace('#',"_",$value);
+									$value = str_replace('\_',"_",$value);
+									$value = str_replace('*',"%",$value);
+								}
+								if(!empty($table)){
+									$where .= "`".$table."`.";
+								}
+								$where .= "`".self::clean4DB($par['param'],true)."` ".self::clean4DB($par['operator'])." '".$value."' ".self::clean4DB($divider_operator)." ";
 							}
-							if(!isset($par['operator'])){
-								$par['operator'] = '';
-							}
-							$value = self::clean4DB($par['value']);
-							$value = str_replace('\_',"_",$value);
-							$value = str_replace('*',"%",$value);
-							if(!empty($table)){
-								$where .= "`".$table."`.";
-							}
-							$where .= "`".self::clean4DB($par['param'],1)."` ".self::clean4DB($par['operator'])." '".$value."' ".self::clean4DB($divider_operator)." ";
 						}
 					}
 				}
@@ -511,8 +515,12 @@ namespace TiMMiT\MySQL;
 					$divider_operator = $par['divider_operator'];
 				}
 				$where = substr($where, 0, (0-strlen(" ".self::clean4DB($divider_operator)." ")));
+				$where .= ")";
+				if($where==")"){
+					$where = "";
+				}
 			} else {
-				$where = "1=1";
+				$where = "(1=1)";
 			}
 			return $where;
 		}
