@@ -162,10 +162,10 @@ namespace TiMMiT\MySQL;
 
 			mysqli_report(MYSQLI_REPORT_OFF); // back to normal reporting
 
-			if (self::$mlink) {
+			if (mysqli_ping(self::$mlink)) {
 				mysqli_set_charset(self::$mlink,self::$charset);
 			}
-			if (self::$writeActive && self::$mlinkWrite) {
+			if (self::$writeActive && mysqli_ping(self::$mlinkWrite)) {
 				mysqli_set_charset(self::$mlinkWrite,self::$charset);
 				mysqli_query(self::$mlink,"SET SESSION wsrep_sync_wait = 1;");
 			}
@@ -177,13 +177,12 @@ namespace TiMMiT\MySQL;
 		 */
 		public static function disconnect() {
 			self::addToStats(__FUNCTION__);
-			if(self::$mlink){
-				if (self::$writeActive && self::$mlinkWrite) {
-					mysqli_close(self::$mlinkWrite);
-				}
-				return mysqli_close(self::$mlink);
+			if (self::$writeActive && mysqli_ping(self::$mlinkWrite)) {
+				mysqli_close(self::$mlinkWrite);
 			}
-			return true;
+			if(mysqli_ping(self::$mlink)){
+				mysqli_close(self::$mlink);
+			}
 		}
 
 		/**
@@ -202,10 +201,10 @@ namespace TiMMiT\MySQL;
 		 * @param boolean $writeQuery
 		 * @param int $resultmode
 		 * @param int $count
-		 * @return boolean
+		 * @return \mysqli_result|boolean
 		 */
 		private static function query($query,$writeQuery=false,$resultmode=NULL,$count=0) {
-			if ($writeQuery && self::$writeActive && self::$mlinkWrite) {
+			if ($writeQuery && self::$writeActive && mysqli_ping(self::$mlinkWrite)) {
 				$write = true;
 			} else {
 				$write = false;
@@ -244,11 +243,7 @@ namespace TiMMiT\MySQL;
 					case 2006:
 					case 1047:
 						if($count < self::$max_goneaway_count){
-							if($write){
-								mysqli_close(self::$mlinkWrite);
-							} else {
-								mysqli_close(self::$mlink);
-							}
+							self::disconnect();
 							$count++;
 							usleep(($count*round(100000,1000000)*self::$sleep_goneaway_multiplier));
 							self::reconnect();
@@ -522,7 +517,12 @@ namespace TiMMiT\MySQL;
 			return $where;
 		}
 
-
+		/**
+		 * dbDelta on DB
+		 * @param string $queries
+		 * @param boolean $execute
+		 * @return array
+		 */
 		public static function dbDelta( $queries = '', $execute = true ) {
 			self::addToStats(__FUNCTION__);
 			// Separate individual queries into an array
