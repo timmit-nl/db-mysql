@@ -223,7 +223,7 @@ namespace TiMMiT\MySQL;
 		 * @return \mysqli_result|boolean
 		 */
 		private static function query($query,$writeQuery=false,$resultmode=NULL,$count=0) {
-			if ($writeQuery && self::$writeActive && DB::ping(true)) {
+			if ($writeQuery && self::$writeActive) {
 				$mlink = self::$mlinkWrite;
 				$write = true;
 			} else {
@@ -273,21 +273,26 @@ namespace TiMMiT\MySQL;
 		/**
 		 * Update Query function
 		 * @param string $query
+		 * @param boolean $writeNode
 		 * @return boolean
 		 */
-		public static function updateQuery($query) {
+		public static function updateQuery($query,$writeNode=true) {
 			self::addToStats(__FUNCTION__);
-			return self::query($query,true);
+			if(!empty($_GET['debug'])){
+				file_put_contents(BASE_DIR.'/queryV2.log',__FUNCTION__.'|'.$query.PHP_EOL,FILE_APPEND);
+			}
+			return self::query($query,$writeNode);
 		}
 
 		/**
 		 * Delete Query function
 		 * @param string $query
+		 * @param boolean $writeNode
 		 * @return boolean
 		 */
-		public static function deleteQuery($query) {
+		public static function deleteQuery($query,$writeNode=true) {
 			self::addToStats(__FUNCTION__);
-			return self::query($query,true);
+			return self::query($query,$writeNode);
 		}
 
 		/**
@@ -305,11 +310,12 @@ namespace TiMMiT\MySQL;
 		 * Select Query function
 		 * @param string $query
 		 * @param string $keyField
+		 * @param boolean $writeNode
 		 * @return array
 		 */
-		public static function selectQuery($query,$keyField='') {
+		public static function selectQuery($query,$keyField='',$writeNode=false) {
 			self::addToStats(__FUNCTION__);
-			$result = self::query($query);
+			$result = self::query($query,$writeNode);
 			$return = array();
 			if($result instanceof \mysqli_result){
 				//while ($row = mysqli_fetch_assoc($result)) {
@@ -328,11 +334,15 @@ namespace TiMMiT\MySQL;
 		/**
 		 * Insert Query function
 		 * @param string $query
+		 * @param boolean $writeNode
 		 * @return int
 		 */
-		public static function insertQuery($query) {
+		public static function insertQuery($query,$writeNode=true) {
 			self::addToStats(__FUNCTION__);
-			self::query($query,true);
+			if(!empty($_GET['debug'])){
+				file_put_contents(BASE_DIR.'/queryV2.log',__FUNCTION__.'|'.$query.PHP_EOL,FILE_APPEND);
+			}
+			self::query($query,$writeNode);
 			return mysqli_insert_id(self::$mlink);
 		}
 
@@ -861,6 +871,35 @@ namespace TiMMiT\MySQL;
 				return file_get_contents($filename);
 			}
 			return $a;
+		}
+
+		/**
+		 * start a transaction
+		 * @param boolean $writeNode
+		 * @return array stats
+		 */
+		public static function startTransaction($writeNode=true){
+			self::executeQuery("SET autocommit=0;");
+			self::executeQuery("SET unique_checks=0;");
+			self::executeQuery("SET foreign_key_checks=0");
+			self::executeQuery("START TRANSACTION;");
+		}
+
+		/**
+		 * stop a transaction
+		 * @param boolean $commit
+		 * @param boolean $writeNode
+		 * @return array stats
+		 */
+		public static function endTransaction($commit,$writeNode=true){
+			if($commit){
+				self::executeQuery("COMMIT;");
+			} else {
+				self::executeQuery("ROLLBACK;");
+			}
+			self::executeQuery("SET autocommit=1;");
+			self::executeQuery("SET unique_checks=1;");
+			self::executeQuery("SET foreign_key_checks=1;");
 		}
 
 		/**
