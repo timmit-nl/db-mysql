@@ -252,6 +252,7 @@ namespace TiMMiT\MySQL;
 						break;
 					case 2006:
 					case 1047:
+					case 1205:
 						if($count < self::$max_goneaway_count){
 							self::disconnect();
 							$count++;
