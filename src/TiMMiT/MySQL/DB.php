@@ -162,10 +162,10 @@ namespace TiMMiT\MySQL;
 
 			mysqli_report(MYSQLI_REPORT_OFF); // back to normal reporting
 
-			if (mysqli_ping(self::$mlink)) {
+			if (self::ping()) {
 				mysqli_set_charset(self::$mlink,self::$charset);
 			}
-			if (self::$writeActive && mysqli_ping(self::$mlinkWrite)) {
+			if (self::$writeActive && self::ping(true)) {
 				mysqli_set_charset(self::$mlinkWrite,self::$charset);
 				mysqli_query(self::$mlink,"SET SESSION wsrep_sync_wait = 1;");
 			}
@@ -177,10 +177,10 @@ namespace TiMMiT\MySQL;
 		 */
 		public static function disconnect() {
 			self::addToStats(__FUNCTION__);
-			if (self::$writeActive && mysqli_ping(self::$mlinkWrite)) {
+			if (self::$writeActive && self::ping(true)) {
 				mysqli_close(self::$mlinkWrite);
 			}
-			if(mysqli_ping(self::$mlink)){
+			if(self::ping()){
 				mysqli_close(self::$mlink);
 			}
 		}
@@ -196,6 +196,25 @@ namespace TiMMiT\MySQL;
 		}
 
 		/**
+		 * ping to DB
+		 * @param boolean $writeNode
+		 * @return boolean
+		 */
+		public static function ping($writeNode=false) {
+			self::addToStats(__FUNCTION__);
+			if($writeNode){
+				$link = self::$mlinkWrite;
+			} else {
+				$link = self::$mlink;
+			}
+			if(is_null($link) || !@mysqli_ping($link)){
+				return false;
+			}
+			return true;
+		}
+
+
+		/**
 		 * Update Query function
 		 * @param string $query
 		 * @param boolean $writeQuery
@@ -204,32 +223,23 @@ namespace TiMMiT\MySQL;
 		 * @return \mysqli_result|boolean
 		 */
 		private static function query($query,$writeQuery=false,$resultmode=NULL,$count=0) {
-			if ($writeQuery && self::$writeActive && mysqli_ping(self::$mlinkWrite)) {
+			if ($writeQuery && self::$writeActive) {
+				$mlink = self::$mlinkWrite;
 				$write = true;
 			} else {
+				$mlink = self::$mlink;
 				$write = false;
 			}
 
 			self::addToStats(__FUNCTION__);
 			if(is_null($resultmode)){
-				if($write){
-					$result = mysqli_query(self::$mlinkWrite,$query);
-				} else {
-					$result = mysqli_query(self::$mlink,$query);
-				}
+				$result = mysqli_query($mlink,$query);
 			} else {
-				if($write){
-					$result = mysqli_query(self::$mlinkWrite,$query,$resultmode);
-				} else {
-					$result = mysqli_query(self::$mlink,$query,$resultmode);
-				}
+				$result = mysqli_query($mlink,$query,$resultmode);
 			}
 			if (!$result) {
-				if($write){
-					$errorno = mysqli_errno(self::$mlinkWrite);
-				} else {
-					$errorno = mysqli_errno(self::$mlink);
-				}
+				$errorno = mysqli_errno($mlink);
+				$error = mysqli_error(self::$mlink);
 				switch($errorno){
 					case 1213:
 						if($count < self::$max_deadlock_count){
@@ -237,11 +247,12 @@ namespace TiMMiT\MySQL;
 							usleep(($count*round(100000,1000000)*self::$sleep_deadlock_multiplier));
 							$result = self::query($query,$write,$resultmode,($count+1));
 						} else {
-							trigger_error("Query Failed:<ul><li>errorno=" . $errorno ."</li><li>failure_count=" . $count ." of max=" . self::$max_deadlock_count ." </li><li>error=" . mysqli_error(self::$mlink) . "</li><li>query=" . $query . "</li></ul>",E_USER_ERROR);
+							trigger_error("Query Failed:<ul><li>errorno=" . $errorno ."</li><li>failure_count=" . $count ." of max=" . self::$max_deadlock_count ." </li><li>error=" . $error . "</li><li>query=" . $query . "</li></ul>",E_USER_ERROR);
 						}
 						break;
 					case 2006:
 					case 1047:
+					case 1205:
 						if($count < self::$max_goneaway_count){
 							self::disconnect();
 							$count++;
@@ -249,11 +260,11 @@ namespace TiMMiT\MySQL;
 							self::reconnect();
 							$result = self::query($query,$write,$resultmode,$count);
 						} else {
-							trigger_error("Query Failed:<ul><li>errorno=" . $errorno ."</li><li>failure_count=" . $count ." of max=" . self::$max_goneaway_count ." </li><li>error=" . mysqli_error(self::$mlink) . "</li><li>query=" . $query . "</li></ul>",E_USER_ERROR);
+							trigger_error("Query Failed:<ul><li>errorno=" . $errorno ."</li><li>failure_count=" . $count ." of max=" . self::$max_goneaway_count ." </li><li>error=" . $error . "</li><li>query=" . $query . "</li></ul>",E_USER_ERROR);
 						}
 						break;
 					default:
-						trigger_error("Query Failed:<ul><li>errorno=" . $errorno ."</li><li>error=" . mysqli_error(self::$mlink) . "</li><li>query= " . $query . "</li></ul>",E_USER_ERROR);
+						trigger_error("Query Failed:<ul><li>errorno=" . $errorno ."</li><li>error=" . $error . "</li><li>query= " . $query . "</li></ul>",E_USER_ERROR);
 						break;
 				}
 			}
@@ -263,21 +274,26 @@ namespace TiMMiT\MySQL;
 		/**
 		 * Update Query function
 		 * @param string $query
+		 * @param boolean $writeNode
 		 * @return boolean
 		 */
-		public static function updateQuery($query) {
+		public static function updateQuery($query,$writeNode=true) {
 			self::addToStats(__FUNCTION__);
-			return self::query($query,true);
+			if(!empty($_GET['debug'])){
+				file_put_contents(BASE_DIR.'/queryV2.log',__FUNCTION__.'|'.$query.PHP_EOL,FILE_APPEND);
+			}
+			return self::query($query,$writeNode);
 		}
 
 		/**
 		 * Delete Query function
 		 * @param string $query
+		 * @param boolean $writeNode
 		 * @return boolean
 		 */
-		public static function deleteQuery($query) {
+		public static function deleteQuery($query,$writeNode=true) {
 			self::addToStats(__FUNCTION__);
-			return self::query($query,true);
+			return self::query($query,$writeNode);
 		}
 
 		/**
@@ -295,11 +311,12 @@ namespace TiMMiT\MySQL;
 		 * Select Query function
 		 * @param string $query
 		 * @param string $keyField
+		 * @param boolean $writeNode
 		 * @return array
 		 */
-		public static function selectQuery($query,$keyField='') {
+		public static function selectQuery($query,$keyField='',$writeNode=false) {
 			self::addToStats(__FUNCTION__);
-			$result = self::query($query);
+			$result = self::query($query,$writeNode);
 			$return = array();
 			if($result instanceof \mysqli_result){
 				//while ($row = mysqli_fetch_assoc($result)) {
@@ -318,11 +335,15 @@ namespace TiMMiT\MySQL;
 		/**
 		 * Insert Query function
 		 * @param string $query
+		 * @param boolean $writeNode
 		 * @return int
 		 */
-		public static function insertQuery($query) {
+		public static function insertQuery($query,$writeNode=true) {
 			self::addToStats(__FUNCTION__);
-			self::query($query,true);
+			if(!empty($_GET['debug'])){
+				file_put_contents(BASE_DIR.'/queryV2.log',__FUNCTION__.'|'.$query.PHP_EOL,FILE_APPEND);
+			}
+			self::query($query,$writeNode);
 			return mysqli_insert_id(self::$mlink);
 		}
 
@@ -851,6 +872,35 @@ namespace TiMMiT\MySQL;
 				return file_get_contents($filename);
 			}
 			return $a;
+		}
+
+		/**
+		 * start a transaction
+		 * @param boolean $writeNode
+		 * @return array stats
+		 */
+		public static function startTransaction($writeNode=true){
+			self::executeQuery("SET autocommit=0;");
+			self::executeQuery("SET unique_checks=0;");
+			self::executeQuery("SET foreign_key_checks=0");
+			self::executeQuery("START TRANSACTION;");
+		}
+
+		/**
+		 * stop a transaction
+		 * @param boolean $commit
+		 * @param boolean $writeNode
+		 * @return array stats
+		 */
+		public static function endTransaction($commit,$writeNode=true){
+			if($commit){
+				self::executeQuery("COMMIT;");
+			} else {
+				self::executeQuery("ROLLBACK;");
+			}
+			self::executeQuery("SET autocommit=1;");
+			self::executeQuery("SET unique_checks=1;");
+			self::executeQuery("SET foreign_key_checks=1;");
 		}
 
 		/**
