@@ -197,12 +197,12 @@ namespace TiMMiT\MySQL;
 
 		/**
 		 * ping to DB
-		 * @param boolean $writeQuery
+		 * @param boolean $writeNode
 		 * @return boolean
 		 */
-		public static function ping($writeQuery=false) {
+		public static function ping($writeNode=false) {
 			self::addToStats(__FUNCTION__);
-			if($writeQuery){
+			if($writeNode){
 				$link = self::$mlinkWrite;
 			} else {
 				$link = self::$mlink;
