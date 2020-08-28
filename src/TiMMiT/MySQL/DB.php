@@ -279,9 +279,6 @@ namespace TiMMiT\MySQL;
 		 */
 		public static function updateQuery($query,$writeNode=true) {
 			self::addToStats(__FUNCTION__);
-			if(!empty($_GET['debug'])){
-				file_put_contents(BASE_DIR.'/queryV2.log',__FUNCTION__.'|'.$query.PHP_EOL,FILE_APPEND);
-			}
 			return self::query($query,$writeNode);
 		}
 
@@ -340,9 +337,6 @@ namespace TiMMiT\MySQL;
 		 */
 		public static function insertQuery($query,$writeNode=true) {
 			self::addToStats(__FUNCTION__);
-			if(!empty($_GET['debug'])){
-				file_put_contents(BASE_DIR.'/queryV2.log',__FUNCTION__.'|'.$query.PHP_EOL,FILE_APPEND);
-			}
 			self::query($query,$writeNode);
 			return mysqli_insert_id(self::$mlink);
 		}
