@@ -2,7 +2,7 @@
 /**
  * A very simple class for using MySQL.
  *
- * PHP version 5.3+
+ * PHP version 7.2+
  *
  * @package TiMMiT/DB-MySQL
  * @author  Tim Schoondergang <tim.schoondergang@TiMMiT.nl>
@@ -167,7 +167,7 @@ namespace TiMMiT\MySQL;
 			}
 			if (self::$writeActive && self::ping(true)) {
 				mysqli_set_charset(self::$mlinkWrite,self::$charset);
-				mysqli_query(self::$mlink,"SET SESSION wsrep_sync_wait = 1;");
+				DB::setWsrepSyncWait(true);
 			}
 		}
 
@@ -895,6 +895,20 @@ namespace TiMMiT\MySQL;
 			self::executeQuery("SET autocommit=1;");
 			self::executeQuery("SET unique_checks=1;");
 			self::executeQuery("SET foreign_key_checks=1;");
+		}
+
+		/**
+		 * setWsrepSyncWait
+		 * @param bool $on
+		 * @return void
+		 */
+		public static function setWsrepSyncWait(bool $on=true): void
+		{
+			if($on){
+				mysqli_query(self::$mlink,"SET SESSION wsrep_sync_wait = 1;");
+			} else {
+				mysqli_query(self::$mlink,"SET SESSION wsrep_sync_wait = 0;");
+			}
 		}
 
 		/**
