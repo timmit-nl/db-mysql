@@ -1,5 +1,5 @@
 PHP static:
-  image: php:7.5
+  image: php:7.4
   stage: test
   before_script:
   - apt-get upgrade
