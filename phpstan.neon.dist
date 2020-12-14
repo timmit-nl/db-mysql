@@ -7,16 +7,9 @@ parameters:
 		processTimeout: 120.0
 	fileExtensions:
 		- php
-	bootstrapFiles:
-		- ./app/bootstrap.php
-		- ./app/bootstrapPHPSTAN.php
 	paths:
-		- ./public_html/index.php
 		- ./src
-		- ./vendor/timmit
-		- ./app
 	excludes_analyse:
-		- ./app/tmp/*
 	dynamicConstantNames:
 		- FORCESSL
 		- ENV
