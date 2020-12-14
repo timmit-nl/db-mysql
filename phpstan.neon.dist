@@ -1,0 +1,21 @@
+parameters:
+	level: 5
+	parallel:
+		maximumNumberOfProcesses: 4
+		minimumNumberOfJobsPerProcess: 2
+		jobSize: 2
+		processTimeout: 120.0
+	fileExtensions:
+		- php
+	paths:
+		- ./src
+	excludes_analyse:
+	dynamicConstantNames:
+		- FORCESSL
+		- ENV
+		- CLI_IP_ADDR
+		- CLI_VERSION
+		- CLI_HOST_ID
+		- CLI_DAEMON_ID
+		- FROM_EMAIL
+	treatPhpDocTypesAsCertain: false
