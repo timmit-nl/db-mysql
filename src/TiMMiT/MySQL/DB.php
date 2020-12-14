@@ -89,13 +89,13 @@ class DB
 
     /**
      * Created DB connection
-     * @var \mysqli|false
+     * @var \mysqli
      */
     public static $mlink;
 
     /**
      * Created DBwrite connection
-     * @var \mysqli|false
+     * @var \mysqli|null
      */
     public static $mlinkWrite;
 
@@ -130,12 +130,12 @@ class DB
     /**
      * throw Exception
      * @param string $message
-     * @param string $code
+     * @param int $code
      * @return boolean
      */
     function throwException($message = null, $code = null)
     {
-        throw new \Exception($message, $code);
+        throw new \Exception($message, (int)$code);
     }
 
     /**
@@ -179,7 +179,7 @@ class DB
 
     /**
      * Disconnect to DB
-     * @return boolean
+     * @return void
      */
     public static function disconnect()
     {
@@ -254,7 +254,7 @@ class DB
                 case 1213:
                     if ($count < self::$max_deadlock_count) {
                         $count++;
-                        usleep(($count * round(100000, 1000000) * self::$sleep_deadlock_multiplier));
+                        usleep((int)($count * round(100000, 1000000) * self::$sleep_deadlock_multiplier));
                         $result = self::query($query, $write, $resultmode, ($count + 1));
                     } else {
                         trigger_error("Query Failed:<ul><li>errorno=" . $errorno . "</li><li>failure_count=" . $count . " of max=" . self::$max_deadlock_count . " </li><li>error=" . $error . "</li><li>query=" . $query . "</li></ul>", E_USER_ERROR);
@@ -266,7 +266,7 @@ class DB
                     if ($count < self::$max_goneaway_count) {
                         self::disconnect();
                         $count++;
-                        usleep(($count * round(100000, 1000000) * self::$sleep_goneaway_multiplier));
+                        usleep((int)($count * round(100000, 1000000) * self::$sleep_goneaway_multiplier));
                         self::reconnect();
                         $result = self::query($query, $write, $resultmode, $count);
                     } else {
@@ -487,7 +487,7 @@ class DB
                 $stap = 10;
                 for ($a = 0; $a < $erbij; $a += $stap) {
                     $erbij2 = min(($erbij - $a), $stap);
-                    $rand = rand(pow(36, ($erbij2 - 1)), (pow(36, $erbij2) - 1));
+                    $rand = (string)rand(pow(36, ($erbij2 - 1)), (pow(36, $erbij2) - 1));
                     $id .= base_convert($rand, 10, 36);
                 }
             } else {
@@ -851,13 +851,13 @@ class DB
         if (!empty($fields) && is_array($fields)) {
             $fieldsArray = array();
             foreach ($fields as $field) {
-                $fieldsArray[] = self::clean4DB($field, 1);
+                $fieldsArray[] = self::clean4DB($field, true);
             }
             $fieldsTxt = implode(", ", $fieldsArray);
         }
-        $query = "SELECT " . $fieldsTxt . " FROM " . self::clean4DB($table, 1) . " WHERE " . self::getWhereFromParam($params);
+        $query = "SELECT " . $fieldsTxt . " FROM " . self::clean4DB($table, true) . " WHERE " . self::getWhereFromParam($params);
 
-        $totalResult = DB::selectQuery("SELECT count(*) as `total` FROM " . self::clean4DB($table, 1) . " WHERE " . self::getWhereFromParam($params) . ";");
+        $totalResult = DB::selectQuery("SELECT count(*) as `total` FROM " . self::clean4DB($table, true) . " WHERE " . self::getWhereFromParam($params) . ";");
         $total = $totalResult[0]['total'];
         $chunk = 1000;
 
@@ -898,7 +898,7 @@ class DB
     /**
      * start a transaction
      * @param boolean $writeNode
-     * @return array stats
+     * @return void
      */
     public static function startTransaction($writeNode = true)
     {
@@ -912,7 +912,7 @@ class DB
      * stop a transaction
      * @param boolean $commit
      * @param boolean $writeNode
-     * @return array stats
+     * @return void
      */
     public static function endTransaction($commit, $writeNode = true)
     {
