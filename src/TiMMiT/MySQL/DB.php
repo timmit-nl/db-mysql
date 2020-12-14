@@ -823,7 +823,7 @@ class DB
     /**
      * clean variable from DB against slashes against SQL injection for export csv
      * @param string $value
-     * @param string $value
+     * @param string $key
      * @return void
      */
     public static function cleanFromDB4Csv(&$value, $key)
