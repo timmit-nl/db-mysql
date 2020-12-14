@@ -1,0 +1,28 @@
+parameters:
+	level: 5
+	parallel:
+		maximumNumberOfProcesses: 4
+		minimumNumberOfJobsPerProcess: 2
+		jobSize: 2
+		processTimeout: 120.0
+	fileExtensions:
+		- php
+	bootstrapFiles:
+		- ./app/bootstrap.php
+		- ./app/bootstrapPHPSTAN.php
+	paths:
+		- ./public_html/index.php
+		- ./src
+		- ./vendor/timmit
+		- ./app
+	excludes_analyse:
+		- ./app/tmp/*
+	dynamicConstantNames:
+		- FORCESSL
+		- ENV
+		- CLI_IP_ADDR
+		- CLI_VERSION
+		- CLI_HOST_ID
+		- CLI_DAEMON_ID
+		- FROM_EMAIL
+	treatPhpDocTypesAsCertain: false
