@@ -527,25 +527,52 @@ class DB
                 }
                 if (isset($par['param'])) {
                     if (!empty($par['param'])) {
-                        if (is_array($par['param'])) {
+                        if (!isset($par['operator'])) {
+                            $par['operator'] = '';
+                        }
+                        if (is_array($par['param']) && ($par['operator'] != 'IN' || $par['operator'] != 'NOT IN')) {
                             $where .= '' . self::getWhereFromParam($par['param'], $table) . ' ' . self::clean4DB($divider_operator) . " ";
                         } else {
                             if (!isset($par['value'])) {
                                 $par['value'] = '';
                             }
-                            if (!isset($par['operator'])) {
-                                $par['operator'] = '';
-                            }
-                            $value = self::clean4DB($par['value']);
-                            if (isset($par['dont_escape_special_characters']) && $par['dont_escape_special_characters'] == true) {
-                                $value = str_replace('#', "_", $value);
-                                $value = str_replace('\_', "_", $value);
-                                $value = str_replace('*', "%", $value);
-                            }
                             if (!empty($table)) {
                                 $where .= "`" . $table . "`.";
                             }
-                            $where .= "`" . self::clean4DB($par['param'], true) . "` " . self::clean4DB($par['operator']) . " '" . $value . "' " . self::clean4DB($divider_operator) . " ";
+                            $par['operator'] = strtoupper($par['operator']);
+                            switch ($par['operator']) {
+                                case 'IN':
+                                case 'NOT IN':
+                                    $value_txt = '';
+                                    if (is_array($par['value'])) {
+                                        if (!empty($par['value'])) {
+                                            $values = array();
+                                            foreach ($par['value'] as $value) {
+                                                $value = self::clean4DB($value);
+                                                if (isset($par['dont_escape_special_characters']) && $par['dont_escape_special_characters'] == true) {
+                                                    $value = str_replace('#', "_", $value);
+                                                    $value = str_replace('\_', "_", $value);
+                                                    $value = str_replace('*', "%", $value);
+                                                }
+                                                $values[] = $value;
+                                            }
+                                            $value_txt = "'" . implode("','", $values) . "'";
+                                        }
+                                    } else {
+                                        $value_txt = $par['value'];
+                                    }
+                                    $where .= "`" . self::clean4DB($par['param'], true) . "` " . $par['operator'] . " (" . $value_txt . ") " . self::clean4DB($divider_operator) . " ";
+                                    break;
+                                default:
+                                    $value = self::clean4DB($par['value']);
+                                    if (isset($par['dont_escape_special_characters']) && $par['dont_escape_special_characters'] == true) {
+                                        $value = str_replace('#', "_", $value);
+                                        $value = str_replace('\_', "_", $value);
+                                        $value = str_replace('*', "%", $value);
+                                    }
+                                    $where .= "`" . self::clean4DB($par['param'], true) . "` " . self::clean4DB($par['operator']) . " '" . $value . "' " . self::clean4DB($divider_operator) . " ";
+                                    break;
+                            }
                         }
                     }
                 }
