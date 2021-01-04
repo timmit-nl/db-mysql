@@ -212,12 +212,20 @@ class DB
     {
         self::addToStats(__FUNCTION__);
         if ($writeNode) {
-            $link = self::$mlinkWrite;
+            $mlink = self::$mlinkWrite;
         } else {
-            $link = self::$mlink;
+            $mlink = self::$mlink;
         }
-        if (is_null($link) || !@mysqli_ping($link)) {
+        if (is_null($mlink)) {
             return false;
+        }
+
+        $result = mysqli_query($mlink, 'SELECT 1;');
+        if (!$result) {
+            $errorno = mysqli_errno($mlink);
+            if (!empty($errorno)) {
+                return false;
+            }
         }
         return true;
     }
@@ -262,7 +270,12 @@ class DB
                     break;
                 case 2006:
                 case 1047:
+                case 1156:
                 case 1205:
+                    if ($count >= self::$max_goneaway_count && $write) {
+                        $write = false;
+                        $count = 0;
+                    }
                     if ($count < self::$max_goneaway_count) {
                         self::disconnect();
                         $count++;
