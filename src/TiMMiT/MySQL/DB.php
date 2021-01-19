@@ -220,14 +220,21 @@ class DB
             return false;
         }
 
-        $result = mysqli_query($mlink, 'SELECT 1;');
-        if (!$result) {
-            $errorno = mysqli_errno($mlink);
-            if (!empty($errorno)) {
-                return false;
+        mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
+        $returnValue = true;
+        try {
+            $result = mysqli_query($mlink, 'SELECT 1;');
+            if (!$result) {
+                $errorno = mysqli_errno($mlink);
+                if (!empty($errorno)) {
+                    $returnValue = false;
+                }
             }
+        } catch (\mysqli_sql_exception $e) {
+            $returnValue =  false;
         }
-        return true;
+        mysqli_report(MYSQLI_REPORT_OFF);
+        return $returnValue;
     }
 
 
