@@ -107,6 +107,20 @@ class DB
     public static $charset = "utf8mb4";
 
     /**
+     * The mysqliReportingExceptionOn.
+     *
+     * @var int
+     */
+    private static $mysqliReportingExceptionOn = MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT;
+
+    /**
+     * The mysqliReportingExceptionOff.
+     *
+     * @var int
+     */
+    private static $mysqliReportingExceptionOff = MYSQLI_REPORT_OFF;
+
+    /**
      * Class constructor.
      * @param array $configVar      settings as assoc array
      * @param array $writeVar      settings as assoc array
@@ -146,7 +160,7 @@ class DB
     {
         self::addToStats(__FUNCTION__);
 
-        mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
+        mysqli_report(self::$mysqliReportingExceptionOn);
 
         try {
             self::$mlink = mysqli_connect(self::$var['host'], self::$var['username'], self::$var['password'], self::$var['database'], (int)self::$var['port']);
@@ -162,11 +176,11 @@ class DB
                 self::$fallbackActive = true;
                 self::$writeActive = false;
             } else {
-                throw new \mysqli_sql_exception($e->getMessage(), $e->getCode());
+                throw new DBException($e->getMessage(), $e->getCode());
             }
         }
 
-        mysqli_report(MYSQLI_REPORT_OFF); // back to normal reporting
+        mysqli_report(self::$mysqliReportingExceptionOff); // back to normal reporting
 
         if (self::ping()) {
             mysqli_set_charset(self::$mlink, self::$charset);
@@ -183,13 +197,18 @@ class DB
      */
     public static function disconnect()
     {
-        self::addToStats(__FUNCTION__);
-        if (self::$writeActive && self::ping(true)) {
-            mysqli_close(self::$mlinkWrite);
+        mysqli_report(self::$mysqliReportingExceptionOn);
+        try {
+            self::addToStats(__FUNCTION__);
+            if (self::$writeActive && self::ping(true)) {
+                mysqli_close(self::$mlinkWrite);
+            }
+            if (self::ping()) {
+                mysqli_close(self::$mlink);
+            }
+        } catch (\mysqli_sql_exception $e) {
         }
-        if (self::ping()) {
-            mysqli_close(self::$mlink);
-        }
+        mysqli_report(self::$mysqliReportingExceptionOff);
     }
 
     /**
@@ -220,7 +239,7 @@ class DB
             return false;
         }
 
-        mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
+        mysqli_report(self::$mysqliReportingExceptionOn);
         $returnValue = true;
         try {
             $result = mysqli_query($mlink, 'SELECT 1;');
@@ -233,7 +252,7 @@ class DB
         } catch (\mysqli_sql_exception $e) {
             $returnValue =  false;
         }
-        mysqli_report(MYSQLI_REPORT_OFF);
+        mysqli_report(self::$mysqliReportingExceptionOff);
         return $returnValue;
     }
 
@@ -257,11 +276,17 @@ class DB
         }
 
         self::addToStats(__FUNCTION__);
-        if (is_null($resultmode)) {
-            $result = mysqli_query($mlink, $query);
-        } else {
-            $result = mysqli_query($mlink, $query, $resultmode);
+        $result = false;
+        mysqli_report(self::$mysqliReportingExceptionOn);
+        try {
+            if (is_null($resultmode)) {
+                $result = mysqli_query($mlink, $query);
+            } else {
+                $result = mysqli_query($mlink, $query, $resultmode);
+            }
+        } catch (\Exception $e) {
         }
+        mysqli_report(self::$mysqliReportingExceptionOff);
         if (!$result) {
             $errorno = mysqli_errno($mlink);
             $error = mysqli_error(self::$mlink);
@@ -272,7 +297,7 @@ class DB
                         usleep((int)($count * round(100000, 1000000) * self::$sleep_deadlock_multiplier));
                         $result = self::query($query, $write, $resultmode, ($count + 1));
                     } else {
-                        trigger_error("Query Failed:<ul><li>errorno=" . $errorno . "</li><li>failure_count=" . $count . " of max=" . self::$max_deadlock_count . " </li><li>error=" . $error . "</li><li>query=" . $query . "</li></ul>", E_USER_ERROR);
+                        throw new DBException("Query Failed:<ul><li>errorno=" . $errorno . "</li><li>failure_count=" . $count . " of max=" . self::$max_deadlock_count . " </li><li>error=" . $error . "</li><li>query=" . $query . "</li></ul>", $errorno);
                     }
                     break;
                 case 2006:
@@ -290,11 +315,11 @@ class DB
                         self::reconnect();
                         $result = self::query($query, $write, $resultmode, $count);
                     } else {
-                        trigger_error("Query Failed:<ul><li>errorno=" . $errorno . "</li><li>failure_count=" . $count . " of max=" . self::$max_goneaway_count . " </li><li>error=" . $error . "</li><li>query=" . $query . "</li></ul>", E_USER_ERROR);
+                        throw new DBException("Query Failed:<ul><li>errorno=" . $errorno . "</li><li>failure_count=" . $count . " of max=" . self::$max_goneaway_count . " </li><li>error=" . $error . "</li><li>query=" . $query . "</li></ul>", $errorno);
                     }
                     break;
                 default:
-                    trigger_error("Query Failed:<ul><li>errorno=" . $errorno . "</li><li>error=" . $error . "</li><li>query= " . $query . "</li></ul>", E_USER_ERROR);
+                    throw new DBException("Query Failed:<ul><li>errorno=" . $errorno . "</li><li>error=" . $error . "</li><li>query= " . $query . "</li></ul>", $errorno);
                     break;
             }
         }
@@ -441,7 +466,7 @@ class DB
     {
         self::addToStats(__FUNCTION__);
         if (is_object($value)) {
-            trigger_error('is object:' . var_export($value, true));
+            throw new DBException('is object:' . var_export($value, true), 999);
         }
         $value = addcslashes(mysqli_real_escape_string(self::$mlink, $value), "%_");
         if ($key != false) {
@@ -653,16 +678,10 @@ class DB
             }
         }
 
-        //echo "<hr/><pre>\n".print_r($cqueries, true)."</pre><hr/>";
-        //die();
-
         foreach ($cqueries as $table => $qry) {
-            //echo "<hr/><pre>\n";
             if (!self::checkTableExist($table)) {
                 continue;
             }
-            //echo "</pre><hr/>";
-            //die();
 
             // Fetch the table column structure from the database
             $tablefields = self::selectQuery("DESCRIBE `{$table}`;");
@@ -681,17 +700,12 @@ class DB
             // Separate field lines into an array.
             $flds = explode("\n", $qryline);
 
-            // todo: Remove this?
-            //echo "<hr/><pre>\n".print_r(strtolower($table), true).":\n".print_r($cqueries, true)."</pre><hr/>";
-
             // For every field line specified in the query.
             foreach ($flds as $fld) {
 
                 // Extract the field name.
                 preg_match("|^([^ ]*)|", trim($fld), $fvals);
-                //var_dump($fvals);
                 $fieldname = trim($fvals[1], '`');
-                //var_dump($fieldname);
 
                 // Verify the found field name.
                 $validfield = true;
@@ -715,10 +729,6 @@ class DB
                 }
             }
 
-            //echo "<hr/><pre>\n".print_r($cfields, true)."</pre><hr/>";
-            //echo "<hr/><pre>\n".print_r($tablefields, true)."</pre><hr/>";
-            //die();
-
             // For every field in the table.
             foreach ($tablefields as $tablefield) {
 
@@ -740,7 +750,6 @@ class DB
 
                     // Get the default value from the array
                     // todo: Remove this?
-                    //echo "{$cfields[strtolower($tablefield['Field'])]}<br>";
                     if (preg_match("| DEFAULT '(.*?)'|i", $cfields[strtolower($tablefield['Field'])], $matches)) {
                         $default_value = $matches[1];
                         if ($tablefield['Default'] != $default_value) {
@@ -756,8 +765,6 @@ class DB
                     // This field exists in the table, but not in the creation queries?
                 }
             }
-            //echo "<hr/><pre>\n".print_r($cqueries, true)."</pre><hr/>";
-            //die();
 
             // For every remaining field specified for the table.
             foreach ($cfields as $fieldname => $fielddef) {
@@ -819,28 +826,17 @@ class DB
                     // Add the column list to the index create string.
                     $index_string = trim($index_string);
 
-                    //echo "<pre>\n";
-                    //var_dump($index_string);
                     $index_strings = array(
                         "$index_string ($index_columns)",
                         "$index_string ($alt_index_columns)",
                     );
-                    //echo "index_strings:\n";
-                    //var_dump($index_strings);
-                    //echo "indices:\n";
-                    //var_dump($indices);
-                    //echo "</pre>";
+
                     foreach ($index_strings as $index_string) {
                         if (!(($aindex = array_search($index_string, $indices)) === false)) {
                             unset($indices[$aindex]);
-                            //break;
-                            // todo: Remove this?
-                            //echo "<pre style=\"border:1px solid #ccc;margin-top:5px;\">{$table}:<br />Found index:".$index_string."</pre>\n";
                             break;
                         }
                     }
-                    // todo: Remove this?
-                    //else echo "<pre style=\"border:1px solid #ccc;margin-top:5px;\">{$table}:<br /><b>Did not find index:</b>".$index_string."<br />".print_r($indices, true)."</pre>\n";
                 }
             }
 
@@ -858,12 +854,9 @@ class DB
         $allqueries = array_merge($cqueries, $iqueries);
         if ($execute) {
             foreach ($allqueries as $query) {
-                // todo: Remove this?
-                //echo "<pre style=\"border:1px solid red;margin-top:5px;\">".print_r($query, true)."</pre>\n";
                 self::query($query, true);
             }
         }
-        //die();
         return $for_update;
     }
 
@@ -980,11 +973,16 @@ class DB
      */
     public static function setWsrepSyncWait(bool $on = true): void
     {
-        if ($on) {
-            mysqli_query(self::$mlink, "SET SESSION wsrep_sync_wait = 1;");
-        } else {
-            mysqli_query(self::$mlink, "SET SESSION wsrep_sync_wait = 0;");
+        mysqli_report(self::$mysqliReportingExceptionOn);
+        try {
+            if ($on) {
+                mysqli_query(self::$mlink, "SET SESSION wsrep_sync_wait = 1;");
+            } else {
+                mysqli_query(self::$mlink, "SET SESSION wsrep_sync_wait = 0;");
+            }
+        } catch (\Exception $ex) {
         }
+        mysqli_report(self::$mysqliReportingExceptionOff);
     }
 
     /**
