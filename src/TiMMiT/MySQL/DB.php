@@ -195,6 +195,7 @@ class DB
             }
         } catch (\mysqli_sql_exception $e) {
         }
+        mysqli_report(self::$mysqliReportingExceptionOff);
     }
 
     /**
