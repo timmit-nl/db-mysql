@@ -142,17 +142,6 @@ class DB
     }
 
     /**
-     * throw Exception
-     * @param string $message
-     * @param int $code
-     * @return boolean
-     */
-    function throwException($message = null, $code = null)
-    {
-        throw new \Exception($message, (int)$code);
-    }
-
-    /**
      * Connect to DB
      * @return void
      */
@@ -180,7 +169,6 @@ class DB
             }
         }
 
-        mysqli_report(self::$mysqliReportingExceptionOff); // back to normal reporting
 
         if (self::ping()) {
             mysqli_set_charset(self::$mlink, self::$charset);
@@ -197,7 +185,6 @@ class DB
      */
     public static function disconnect()
     {
-        mysqli_report(self::$mysqliReportingExceptionOn);
         try {
             self::addToStats(__FUNCTION__);
             if (self::$writeActive && self::ping(true)) {
@@ -208,7 +195,6 @@ class DB
             }
         } catch (\mysqli_sql_exception $e) {
         }
-        mysqli_report(self::$mysqliReportingExceptionOff);
     }
 
     /**
@@ -239,7 +225,6 @@ class DB
             return false;
         }
 
-        mysqli_report(self::$mysqliReportingExceptionOn);
         $returnValue = true;
         try {
             $result = mysqli_query($mlink, 'SELECT 1;');
@@ -249,10 +234,11 @@ class DB
                     $returnValue = false;
                 }
             }
+        } catch (\Throwable $e) {
+            $returnValue =  false;
         } catch (\mysqli_sql_exception $e) {
             $returnValue =  false;
         }
-        mysqli_report(self::$mysqliReportingExceptionOff);
         return $returnValue;
     }
 
@@ -277,7 +263,7 @@ class DB
 
         self::addToStats(__FUNCTION__);
         $result = false;
-        mysqli_report(self::$mysqliReportingExceptionOn);
+
         try {
             if (is_null($resultmode)) {
                 $result = mysqli_query($mlink, $query);
@@ -285,9 +271,6 @@ class DB
                 $result = mysqli_query($mlink, $query, $resultmode);
             }
         } catch (\Exception $e) {
-        }
-        mysqli_report(self::$mysqliReportingExceptionOff);
-        if (!$result) {
             $errorno = mysqli_errno($mlink);
             $error = mysqli_error(self::$mlink);
             switch ($errorno) {
@@ -323,6 +306,7 @@ class DB
                     break;
             }
         }
+
         return $result;
     }
 
@@ -973,7 +957,6 @@ class DB
      */
     public static function setWsrepSyncWait(bool $on = true): void
     {
-        mysqli_report(self::$mysqliReportingExceptionOn);
         try {
             if ($on) {
                 mysqli_query(self::$mlink, "SET SESSION wsrep_sync_wait = 1;");
@@ -982,7 +965,6 @@ class DB
             }
         } catch (\Exception $ex) {
         }
-        mysqli_report(self::$mysqliReportingExceptionOff);
     }
 
     /**
