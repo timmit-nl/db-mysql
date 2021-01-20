@@ -1,7 +1,7 @@
 {
     "name": "timmit/db-mysql",
     "description": "A simple DB layer in PHP for using MySQL(i)",
-    "version": "v4.3.0",
+    "version": "v5.0.0",
     "keywords": ["DB", "MySQL", "MySQLi", "database", "DB layer", "database layer"],
     "license": "MIT",
     "homepage": "http://www.TiMMiT.nl/",
@@ -20,8 +20,8 @@
     },
     "minimum-stability": "dev",
     "autoload": {
-        "psr-0": {
-            "TiMMiT\\MySQL\\DB": "src/"
+        "psr-4": {
+            "TiMMiT\\MySQL\\": "src/TiMMiT/MySQL"
         }
     }
 }
