@@ -237,8 +237,6 @@ class DB
             }
         } catch (\Throwable $e) {
             $returnValue =  false;
-        } catch (\mysqli_sql_exception $e) {
-            $returnValue =  false;
         }
         return $returnValue;
     }
@@ -304,7 +302,6 @@ class DB
                     break;
                 default:
                     throw new DBException("Query Failed:<ul><li>errorno=" . $errorno . "</li><li>error=" . $error . "</li><li>query= " . $query . "</li></ul>", $errorno);
-                    break;
             }
         }
 
