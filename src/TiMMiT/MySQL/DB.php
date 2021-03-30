@@ -275,7 +275,7 @@ class DB
      * Update Query function
      * @param string $query
      * @param bool $writeQuery
-     * @param int $resultmode
+     * @param int|null $resultmode
      * @param int $count
      * @return \mysqli_result|bool
      */
