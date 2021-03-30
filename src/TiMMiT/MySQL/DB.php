@@ -4,7 +4,7 @@ declare(strict_types=1);
 /**
  * A very simple class for using MySQL.
  *
- * PHP version 7.2+
+ * PHP version 7.4+
  *
  * @package TiMMiT/DB-MySQL
  * @author  Tim Schoondergang <tim.schoondergang@TiMMiT.nl>
@@ -156,7 +156,7 @@ class DB
      * @param array $fallback      settings as assoc array
      * @return void
      */
-    function __construct(array $config, array $write = array(), array $fallback = array())
+    public function __construct(array $config, array $write = array(), array $fallback = array())
     {
         if (is_array($config)) {
             self::$config = $config;
@@ -279,7 +279,7 @@ class DB
      * @param int $count
      * @return \mysqli_result|bool
      */
-    private static function query(string $query, bool $writeQuery = false, ?int $resultmode = NULL, int $count = 0)
+    private static function query(string $query, bool $writeQuery = false, ?int $resultmode = null, int $count = 0)
     {
         if ($writeQuery && self::$writeActive) {
             $mlink = self::$mlinkWrite;
@@ -476,9 +476,6 @@ class DB
     public static function clean4DB(string $value, bool $key = false): string
     {
         self::addToStats(__FUNCTION__);
-        if (is_object($value)) {
-            throw new DBException('is object:' . var_export($value, true), 999);
-        }
         $value = addcslashes(mysqli_real_escape_string(self::$mlink, $value), "%_");
         if ($key != false) {
             $value = str_replace('\_', "_", $value);
@@ -649,11 +646,11 @@ class DB
 
     /**
      * dbDelta on DB
-     * @param string $queries
+     * @param string|array $queries
      * @param bool $execute
      * @return array
      */
-    public static function dbDelta(string $queries = '', bool $execute = true): array
+    public static function dbDelta($queries = '', bool $execute = true): array
     {
         self::addToStats(__FUNCTION__);
         // Separate individual queries into an array
@@ -713,7 +710,6 @@ class DB
 
             // For every field line specified in the query.
             foreach ($flds as $fld) {
-
                 // Extract the field name.
                 preg_match("|^([^ ]*)|", trim($fld), $fvals);
                 $fieldname = trim($fvals[1], '`');
@@ -742,10 +738,8 @@ class DB
 
             // For every field in the table.
             foreach ($tablefields as $tablefield) {
-
                 // If the table field exists in the field array ...
                 if (array_key_exists(strtolower($tablefield['Field']), $cfields)) {
-
                     // Get the field type from the query.
                     preg_match("|" . $tablefield['Field'] . " ([^ ]*( unsigned)*( zerofill)?)|i", $cfields[strtolower($tablefield['Field'])], $matches);
                     //echo "<hr/><pre>\n".print_r(array("|".$tablefield['Field']." ([^ ]*( unsigned)*( zerofill)?)|i", $cfields[strtolower($tablefield['Field'])],$matches), true)."</pre><hr/>";
@@ -793,7 +787,6 @@ class DB
 
                 // For every index in the table.
                 foreach ($tableindices as $tableindex) {
-
                     // Add the index to the index data array.
                     $keyname = $tableindex['Key_name'];
                     $index_ary[$keyname]['columns'][] = array('fieldname' => $tableindex['Column_name'], 'subpart' => $tableindex['Sub_part']);
@@ -803,7 +796,6 @@ class DB
 
                 // For each actual index in the index array.
                 foreach ($index_ary as $index_name => $index_data) {
-
                     // Build a create string to compare to the query.
                     $index_string = '';
                     if ($index_name == 'PRIMARY') {
