@@ -1007,7 +1007,7 @@ class DB
     public static function checkIfWsrep(): bool
     {
         self::addToStats(__FUNCTION__);
-        return self::checkForResult("SHOW SESSION STATUS LIKE 'wsrep_%';");
+        return self::checkForResult("SHOW SESSION STATUS LIKE 'wsrep_cluster_status';");
     }
 
     /**
