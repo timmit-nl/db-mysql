@@ -121,6 +121,14 @@ class DB
      */
     private static int $mysqliReportingExceptionOff = MYSQLI_REPORT_OFF;
 
+
+    /**
+     * The wsrepSupport.
+     *
+     * @var bool
+     */
+    private static bool $wsrepSupport = false;
+
     /**
      * setConfigValue
      * @param string $field
@@ -204,7 +212,8 @@ class DB
         }
         if (self::$writeActive && self::ping(true)) {
             mysqli_set_charset(self::$mlinkWrite, self::$charset);
-            DB::setWsrepSyncWait(true);
+            self::$wsrepSupport = DB::checkIfWsrep();
+            self::setWsrepSyncWait(true);
         }
     }
 
@@ -947,10 +956,30 @@ class DB
      */
     public static function startTransaction(bool $writeNode = true): void
     {
-        self::executeQuery("SET autocommit=0;");
-        self::executeQuery("SET unique_checks=0;");
-        self::executeQuery("SET foreign_key_checks=0");
-        self::executeQuery("START TRANSACTION;");
+        self::executeQuery("SET autocommit=0;", $writeNode);
+        self::executeQuery("SET unique_checks=0;", $writeNode);
+        self::executeQuery("SET foreign_key_checks=0", $writeNode);
+        self::executeQuery("START TRANSACTION;", $writeNode);
+    }
+
+    /**
+     * commit a transaction
+     * @param bool $writeNode
+     * @return void
+     */
+    public static function commitTransaction(bool $writeNode = true): void
+    {
+        self::executeQuery("COMMIT;", $writeNode);
+    }
+
+    /**
+     * rollback a transaction
+     * @param bool $writeNode
+     * @return void
+     */
+    public static function rollbackTransaction(bool $writeNode = true): void
+    {
+        self::executeQuery("ROLLBACK;", $writeNode);
     }
 
     /**
@@ -962,13 +991,23 @@ class DB
     public static function endTransaction(bool $commit, bool $writeNode = true): void
     {
         if ($commit) {
-            self::executeQuery("COMMIT;");
+            self::commitTransaction($writeNode);
         } else {
-            self::executeQuery("ROLLBACK;");
+            self::rollbackTransaction($writeNode);
         }
-        self::executeQuery("SET autocommit=1;");
-        self::executeQuery("SET unique_checks=1;");
-        self::executeQuery("SET foreign_key_checks=1;");
+        self::executeQuery("SET autocommit=1;", $writeNode);
+        self::executeQuery("SET unique_checks=1;", $writeNode);
+        self::executeQuery("SET foreign_key_checks=1;", $writeNode);
+    }
+
+    /**
+     * Check if Wsrep cluster is active
+     * @return bool
+     */
+    public static function checkIfWsrep(): bool
+    {
+        self::addToStats(__FUNCTION__);
+        return self::checkForResult("SHOW SESSION STATUS LIKE 'wsrep_%';");
     }
 
     /**
@@ -978,13 +1017,15 @@ class DB
      */
     public static function setWsrepSyncWait(bool $on = true): void
     {
-        try {
-            if ($on) {
-                mysqli_query(self::$mlink, "SET SESSION wsrep_sync_wait = 1;");
-            } else {
-                mysqli_query(self::$mlink, "SET SESSION wsrep_sync_wait = 0;");
+        if (self::$wsrepSupport) {
+            try {
+                if ($on) {
+                    mysqli_query(self::$mlink, "SET SESSION wsrep_sync_wait = 1;");
+                } else {
+                    mysqli_query(self::$mlink, "SET SESSION wsrep_sync_wait = 0;");
+                }
+            } catch (\Exception $ex) {
             }
-        } catch (\Exception $ex) {
         }
     }
 
