@@ -1,3 +1,11 @@
+PHP codesniffer DocBlocks:
+  image: pipelinecomponents/php-codesniffer:latest
+  script:
+    - phpcs -s -p --colors --extensions=php --standard=.phpcs-docblock.xml --exclude=Generic.Files.LineLength,Squiz.Classes.ValidClassName ./src
+  only:
+    refs:
+    - merge_requests
+  allow_failure: true
 PHP static:
   image: php:8.0
   stage: test
