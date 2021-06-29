@@ -159,9 +159,9 @@ class DB
 
     /**
      * Class constructor.
-     * @param array $config      settings as assoc array
-     * @param array $write      settings as assoc array
-     * @param array $fallback      settings as assoc array
+     * @param array $config   settings as assoc array
+     * @param array $write    settings as assoc array
+     * @param array $fallback settings as assoc array
      * @return void
      */
     public function __construct(array $config, array $write = array(), array $fallback = array())
@@ -462,8 +462,8 @@ class DB
 
     /**
      * Check if field is Null
-     * @param string $table table where you want to check the field
-     * @param string $field colomn to check
+     * @param string $table             table where you want to check the field
+     * @param string $field             colomn to check
      * @param string $primaryKeyFieldID primary id
      * @return bool
      */
@@ -479,7 +479,7 @@ class DB
     /**
      * clean variable for DB against SQL injection
      * @param string $value
-     * @param bool $key default false
+     * @param bool $key   default false
      * @return string
      */
     public static function clean4DB(string $value, bool $key = false): string
@@ -573,7 +573,7 @@ class DB
 
     /**
      * Make where statement from parameters
-     * @param array|false $param      paramater or parameters as assoc array
+     * @param array|false $param paramater or parameters as assoc array
      * @param string $table
      * @return string
      */
@@ -888,13 +888,13 @@ class DB
 
     /**
      * Export function 2 csv
-     * @param string $table table
-     * @param array $fields if empty=* else array of fields
-     * @param array $params params array for where
-     * @param string|bool $file path to file, false to tempfile
-     * @param bool $return true return csv else return rows of csv
-     * @param string $delimiter delimiter of csv default ;
-     * @param string $enclosure enclosure of csv default "
+     * @param string $table       table
+     * @param array $fields      if empty=* else array of fields
+     * @param array $params      params array for where
+     * @param string|bool $file        path to file, false to tempfile
+     * @param bool $return      true return csv else return rows of csv
+     * @param string $delimiter   delimiter of csv default ;
+     * @param string $enclosure   enclosure of csv default "
      * @param string $escape_char escape_char of csv default \
      * @return int|string
      */
