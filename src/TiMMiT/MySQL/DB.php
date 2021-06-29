@@ -181,9 +181,9 @@ class DB
     /**
      * Connect to DB
      *
-     * @throws DBException
-     *
      * @return void
+     *
+     * @throws DBException
      */
     public static function connect(): void
     {
@@ -291,9 +291,9 @@ class DB
      * @param int|null $resultmode
      * @param int $count
      *
-     * @throws DBException
-     *
      * @return \mysqli_result|bool
+     *
+     * @throws DBException
      */
     private static function query(string $query, bool $writeQuery = false, ?int $resultmode = null, int $count = 0)
     {
