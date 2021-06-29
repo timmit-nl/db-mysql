@@ -183,7 +183,7 @@ class DB
      *
      * @return void
      *
-     * @throws DBException if the connection fails completly
+     * @throws DBException If the connection fails completly.
      */
     public static function connect(): void
     {
@@ -293,7 +293,7 @@ class DB
      *
      * @return \mysqli_result|bool
      *
-     * @throws DBException as the sql fails completly
+     * @throws DBException As the sql fails completly.
      */
     private static function query(string $query, bool $writeQuery = false, ?int $resultmode = null, int $count = 0)
     {
