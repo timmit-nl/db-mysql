@@ -1,7 +1,5 @@
 <?php
 
-declare(strict_types=1);
-
 /**
  * A very simple class for using MySQL.
  *
@@ -10,6 +8,8 @@ declare(strict_types=1);
  * @package TiMMiT/DB-MySQL
  * @author  Tim Schoondergang <tim.schoondergang@TiMMiT.nl>
  */
+
+declare(strict_types=1);
 
 namespace TiMMiT\MySQL;
 
