@@ -70,6 +70,15 @@
     <rule ref="Squiz.Commenting.FileComment.MissingPackageTag">
         <severity>0</severity>
     </rule>
+    <rule ref="Squiz.Commenting.FileComment.SubpackageTagOrder">
+        <severity>0</severity>
+    </rule>
+    <rule ref="Squiz.Commenting.FileComment.MissingSubpackageTag">
+        <severity>0</severity>
+    </rule>
+    <rule ref="Squiz.Commenting.FileComment.IncorrectAuthor">
+        <severity>0</severity>
+    </rule>
     <rule ref="Generic.Commenting.DocComment.SpacingBeforeTags">
         <severity>0</severity>
     </rule>

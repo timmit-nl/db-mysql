@@ -182,6 +182,7 @@ class DB
      * Connect to DB
      *
      * @throws DBException
+     *
      * @return void
      */
     public static function connect(): void
@@ -677,9 +678,9 @@ class DB
         /**
          * Filter the dbDelta SQL queries.
          *
-         * @since 3.3.0
-         *
          * @param array $queries An array of dbDelta SQL queries.
+         *
+         * @since 3.3.0
          */
         $cqueries = array(); // Creation Queries
         $iqueries = array(); // Insertion Queries
@@ -882,8 +883,10 @@ class DB
 
     /**
      * clean variable from DB against slashes against SQL injection for export csv
+     *
      * @param string $value
      * @param string $key
+     *
      * @return void
      */
     public static function cleanFromDB4Csv(string &$value, string $key)
