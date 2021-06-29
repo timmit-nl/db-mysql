@@ -1,5 +1,5 @@
 PHP static:
-  image: php:7.4
+  image: php:8.0
   stage: test
   before_script:
   - apt-get upgrade
@@ -28,7 +28,7 @@ PHP static:
     refs:
     - merge_requests
 PHP docblocks:
-  image: php:7.4
+  image: php:8.0
   stage: test
   before_script:
   - apt-get upgrade
