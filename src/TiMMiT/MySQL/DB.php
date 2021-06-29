@@ -9,7 +9,6 @@ declare(strict_types=1);
  * @package TiMMiT/DB-MySQL
  * @author  Tim Schoondergang <tim.schoondergang@TiMMiT.nl>
  */
-/** */
 
 namespace TiMMiT\MySQL;
 
@@ -180,6 +179,8 @@ class DB
 
     /**
      * Connect to DB
+     *
+     * @throws DBException
      * @return void
      */
     public static function connect(): void
@@ -282,10 +283,14 @@ class DB
 
     /**
      * Update Query function
+     *
      * @param string $query
      * @param bool $writeQuery
      * @param int|null $resultmode
      * @param int $count
+     * 
+     * @throws DBException
+     *
      * @return \mysqli_result|bool
      */
     private static function query(string $query, bool $writeQuery = false, ?int $resultmode = null, int $count = 0)

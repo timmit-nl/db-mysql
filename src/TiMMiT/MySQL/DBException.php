@@ -10,7 +10,6 @@ declare(strict_types=1);
  * @package TiMMiT/DB-MySQL
  * @author  Tim Schoondergang <tim.schoondergang@TiMMiT.nl>
  */
-/** */
 
 namespace TiMMiT\MySQL;
 
