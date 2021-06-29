@@ -288,7 +288,7 @@ class DB
      * @param bool $writeQuery
      * @param int|null $resultmode
      * @param int $count
-     * 
+     *
      * @throws DBException
      *
      * @return \mysqli_result|bool
