@@ -13,6 +13,9 @@ declare(strict_types=1);
 
 namespace TiMMiT\MySQL;
 
+use TiMMiT\MySQL\Where\Collection;
+use TiMMiT\MySQL\Where\Param;
+
 /**
  * MySQL DB connection.
  */
@@ -587,7 +590,9 @@ class DB
     public static function getWhereFromParam($param = false, string $table = ''): string
     {
         self::addToStats(__FUNCTION__);
-        if (is_array($param) && !empty($param)) {
+        if (is_object($param) && ($param instanceof Collection || $param instanceof Param)) {
+            $where = (string)$param;
+        } elseif (is_array($param) && !empty($param)) {
             $where = "(";
             $divider_operator = 'AND';
             foreach ($param as $par) {
