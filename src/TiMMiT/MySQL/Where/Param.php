@@ -89,7 +89,7 @@ class Param
     /**
      * set table variable
      *
-     * @param string $
+     * @param string $table
      *
      * @return Param
      */

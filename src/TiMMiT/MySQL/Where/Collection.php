@@ -56,7 +56,7 @@ class Collection
      *
      * @return Collection
      *
-     * @throws DBException
+     * @throws DBException If operator is not AND,OR,NOT.
      */
     public function setOperator(string $operator): Collection
     {
@@ -81,7 +81,7 @@ class Collection
      *
      * @return Collection
      *
-     * @throws DBException
+     * @throws DBException If $item is not object of type Param or Collection.
      */
     public function add(object $item): Collection
     {
