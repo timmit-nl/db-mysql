@@ -258,7 +258,6 @@ class Param
                     case 'SQL':
                         $this->operator = substr($this->operator, 0, -4);
                         return $this->value;
-                        break;
                     default:
                         $value = DB::clean4DB($value);
                         break;
