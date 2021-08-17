@@ -14,6 +14,7 @@ declare(strict_types=1);
 namespace TiMMiT\MySQL\Where;
 
 use TiMMiT\MySQL\DB;
+use TiMMiT\MySQL\DBException;
 
 /**
  * Where Param
@@ -246,11 +247,28 @@ class Param
      * @param bool $changeOperator
      *
      * @return string
+     *
+     * @throws DBException Is NULL with other operator then = or !=.
      */
     private function valueToString($value, bool $changeOperator = false): string
     {
         switch (strtolower(gettype($value))) {
             case 'null':
+                switch ($this->operator) {
+                    case '=':
+                    case 'IS':
+                        $operator = 'IS';
+                        break;
+                    case '!=':
+                    case 'IS NOT':
+                        $operator = 'IS NOT';
+                        break;
+                    default:
+                        throw new DBException("value NULL can only be used with = or !=", 9910);
+                }
+                if ($this->operator != $operator && $changeOperator) {
+                    $this->operator = $operator;
+                }
                 return "NULL";
             case 'string':
                 // if IN or NOT IN, don't escape string because it is SQL
