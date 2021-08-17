@@ -21,10 +21,26 @@ use TiMMiT\MySQL\DBException;
  */
 class Collection
 {
+    /**
+     * Array of the Collection
+     *
+     * @var array
+     */
     private array $array = array();
 
+    /**
+     * contains operator of Collection (AND/OR/NOT)
+     *
+     * @var string
+     */
     private string $operator = 'AND';
 
+    /**
+     * constructor of class
+     *
+     * @param string $operator
+     * @param array|null $array
+     */
     public function __construct(string $operator = 'AND', ?array $array = null)
     {
         $this->setOperator($operator);
@@ -33,6 +49,15 @@ class Collection
         }
     }
 
+    /**
+     * set operator of collection
+     *
+     * @param string $operator
+     *
+     * @return Collection
+     *
+     * @throws DBException
+     */
     public function setOperator(string $operator): Collection
     {
         $operator = trim(strtoupper($operator));
@@ -49,6 +74,15 @@ class Collection
         return $this;
     }
 
+    /**
+     * add item to collection
+     *
+     * @param object $item
+     *
+     * @return Collection
+     *
+     * @throws DBException
+     */
     public function add(object $item): Collection
     {
         if ($item instanceof Param || $item instanceof Collection) {
@@ -59,16 +93,31 @@ class Collection
         return $this;
     }
 
+    /**
+     * pop last element of collection
+     *
+     * @return mixed
+     */
     public function popLastElementOff(): mixed
     {
         return array_pop($this->array);
     }
 
+    /**
+     * pop first element of collection
+     *
+     * @return mixed
+     */
     public function popFirstElementOff(): mixed
     {
         return array_shift($this->array);
     }
 
+    /**
+     * generate string of object
+     *
+     * @return string
+     */
     public function __toString(): string
     {
         return "(" . implode(" " . $this->operator . " ", $this->array) . ")";

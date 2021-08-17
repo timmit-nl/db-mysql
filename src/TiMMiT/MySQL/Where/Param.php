@@ -20,16 +20,48 @@ use TiMMiT\MySQL\DB;
  */
 class Param
 {
+    /**
+     * fieldname
+     *
+     * @var string
+     */
     private string $field = '';
 
+    /**
+     * value
+     *
+     * @var mixed
+     */
     private $value;
 
+    /**
+     * operator
+     *
+     * @var string
+     */
     private string $operator = '=';
 
+    /**
+     * escapeSpecialCharacters
+     *
+     * @var bool
+     */
     private bool $escapeSpecialCharacters = true;
 
+    /**
+     * table where the field exists
+     *
+     * @var string|null
+     */
     private ?string $table = null;
 
+    /**
+     * constructor
+     *
+     * @param string $field
+     * @param string|null $operator
+     * @param mixed $value
+     */
     public function __construct(string $field, ?string $operator = null, $value = null)
     {
         $this->field = $field;
@@ -41,18 +73,39 @@ class Param
         }
     }
 
+    /**
+     * set escapeSpecialCharacters
+     *
+     * @param bool $escapeSpecialCharacters
+     *
+     * @return Param
+     */
     public function escapeSpecialCharacters(bool $escapeSpecialCharacters = true): Param
     {
         $this->escapeSpecialCharacters = $escapeSpecialCharacters;
         return $this;
     }
 
+    /**
+     * set table variable
+     *
+     * @param string $
+     *
+     * @return Param
+     */
     public function table(string $table): Param
     {
         $this->table = $table;
         return $this;
     }
 
+    /**
+     * is =
+     *
+     * @param mixed $value
+     *
+     * @return Param
+     */
     public function is($value): Param
     {
         $this->value = $value;
@@ -60,6 +113,13 @@ class Param
         return $this;
     }
 
+    /**
+     * isNot !=
+     *
+     * @param mixed $value
+     *
+     * @return Param
+     */
     public function isNot($value): Param
     {
         $this->value = $value;
@@ -67,6 +127,13 @@ class Param
         return $this;
     }
 
+    /**
+     * greaterOrEqual >=
+     *
+     * @param mixed $value
+     *
+     * @return Param
+     */
     public function greaterOrEqual($value): Param
     {
         $this->value = $value;
@@ -74,6 +141,13 @@ class Param
         return $this;
     }
 
+    /**
+     * greater >
+     *
+     * @param mixed $value
+     *
+     * @return Param
+     */
     public function greater($value): Param
     {
         $this->value = $value;
@@ -81,6 +155,13 @@ class Param
         return $this;
     }
 
+    /**
+     * lower or equal <=
+     *
+     * @param mixed $value
+     *
+     * @return Param
+     */
     public function lowerOrEqual($value): Param
     {
         $this->value = $value;
@@ -88,6 +169,13 @@ class Param
         return $this;
     }
 
+    /**
+     * lower <
+     *
+     * @param mixed $value
+     *
+     * @return Param
+     */
     public function lower($value): Param
     {
         $this->value = $value;
@@ -95,20 +183,41 @@ class Param
         return $this;
     }
 
-    public function in(array $value): Param
+    /**
+     * in array
+     *
+     * @param array $value
+     *
+     * @return Param
+     */
+    public function inArray(array $value): Param
     {
         $this->value = $value;
         $this->operator = 'IN';
         return $this;
     }
 
-    public function notIn(array $value): Param
+    /**
+     * not in array
+     *
+     * @param array $value
+     *
+     * @return Param
+     */
+    public function notInArray(array $value): Param
     {
         $this->value = $value;
         $this->operator = 'NOT IN';
         return $this;
     }
 
+    /**
+     * in sql
+     *
+     * @param string $value
+     *
+     * @return Param
+     */
     public function inSql(string $value): Param
     {
         $this->value = $value;
@@ -116,6 +225,13 @@ class Param
         return $this;
     }
 
+    /**
+     * not in sql
+     *
+     * @param string $value
+     *
+     * @return Param
+     */
     public function notSql(string $value): Param
     {
         $this->value = $value;
@@ -123,6 +239,14 @@ class Param
         return $this;
     }
 
+    /**
+     * valueToString
+     *
+     * @param mixed $value
+     * @param bool $changeOperator
+     *
+     * @return string
+     */
     private function valueToString($value, bool $changeOperator = false): string
     {
         switch (strtolower(gettype($value))) {
@@ -171,6 +295,11 @@ class Param
         }
     }
 
+    /**
+     * generate string of object
+     *
+     * @return string
+     */
     public function __toString(): string
     {
         $value = $this->valueToString($this->value, true);
