@@ -1,5 +1,13 @@
+PHP codesniffer DocBlocks:
+  image: pipelinecomponents/php-codesniffer:latest
+  script:
+    - phpcs -s -p --colors --extensions=php --standard=.phpcs-docblock.xml --exclude=Generic.Files.LineLength,Squiz.Classes.ValidClassName ./src
+  only:
+    refs:
+    - merge_requests
+  allow_failure: true
 PHP static:
-  image: php:7.4
+  image: php:8.0
   stage: test
   before_script:
   - apt-get upgrade
@@ -8,7 +16,7 @@ PHP static:
   - apt-get -y install zip
   - curl -sS https://getcomposer.org/installer | php
   - php composer.phar config -g cache-dir "$(pwd)/.composer-cache"
-  - php composer.phar install --ignore-platform-reqs --no-dev --optimize-autoloader --no-ansi --no-interaction --no-progress
+  - php composer.phar install --ignore-platform-reqs --optimize-autoloader --no-ansi --no-interaction --no-progress
   - touch ./CI
   script:
   - sh test/phpstan.sh | tee phpstan_results.txt
@@ -28,7 +36,7 @@ PHP static:
     refs:
     - merge_requests
 PHP docblocks:
-  image: php:7.4
+  image: php:8.0
   stage: test
   before_script:
   - apt-get upgrade
@@ -37,7 +45,7 @@ PHP docblocks:
   - apt-get -y install zip
   - curl -sS https://getcomposer.org/installer | php
   - php composer.phar config -g cache-dir "$(pwd)/.composer-cache"
-  - php composer.phar install --ignore-platform-reqs --no-dev --optimize-autoloader --no-ansi --no-interaction --no-progress
+  - php composer.phar install --ignore-platform-reqs --optimize-autoloader --no-ansi --no-interaction --no-progress
   - touch ./CI
   script:
   - sh test/phpdoc.sh | tee phpdoc_results.txt
@@ -56,3 +64,11 @@ PHP docblocks:
   only:
     refs:
       - merge_requests
+PHP codesniffer:
+  image: pipelinecomponents/php-codesniffer:latest
+  script:
+    - phpcs -s -p --colors --extensions=php --standard=.phpcs.xml --exclude=Generic.Files.LineLength,Squiz.Classes.ValidClassName ./src
+  allow_failure: true
+  only:
+    refs:
+    - merge_requests

@@ -1,7 +1,7 @@
 {
     "name": "timmit/db-mysql",
     "description": "A simple DB layer in PHP for using MySQL(i)",
-    "version": "v5.0.0",
+    "version": "v6.0-RC1",
     "keywords": ["DB", "MySQL", "MySQLi", "database", "DB layer", "database layer"],
     "license": "MIT",
     "homepage": "http://www.TiMMiT.nl/",
@@ -13,7 +13,9 @@
         }
     ],
     "require": {
-        "php": ">=7.2.0",
+        "php": ">=7.4.0"
+    },
+    "require-dev": {
         "phpstan/phpstan": "^0.12.25",
         "phpstan/phpstan-strict-rules": "^0.12.5",
         "sweetstackdigital/php-docblock-checker": "~1.10.6"
