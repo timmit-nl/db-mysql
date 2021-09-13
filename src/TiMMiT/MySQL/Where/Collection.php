@@ -106,7 +106,7 @@ class Collection implements Iterator, Countable, Stringable
     }
 
     /**
-     * {@inheritDoc}
+     * @inheritDoc
      *
      * @return int
      */
@@ -116,7 +116,7 @@ class Collection implements Iterator, Countable, Stringable
     }
 
     /**
-     * {@inheritDoc}
+     * @inheritDoc
      *
      * @return Param
      */
@@ -126,7 +126,7 @@ class Collection implements Iterator, Countable, Stringable
     }
 
     /**
-     * {@inheritDoc}
+     * @inheritDoc
      */
     public function next(): void
     {
@@ -142,7 +142,7 @@ class Collection implements Iterator, Countable, Stringable
     }
 
     /**
-     * {@inheritDoc}
+     * @inheritDoc
      */
     public function rewind(): void
     {
@@ -150,7 +150,7 @@ class Collection implements Iterator, Countable, Stringable
     }
 
     /**
-     * {@inheritDoc}
+     * @inheritDoc
      *
      * @return int
 
@@ -202,7 +202,7 @@ class Collection implements Iterator, Countable, Stringable
     }
 
     /**
-     * {@inheritDoc}
+     * @inheritDoc
      *
      * @return string
      */
