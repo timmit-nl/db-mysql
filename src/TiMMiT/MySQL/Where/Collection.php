@@ -13,13 +13,16 @@ declare(strict_types=1);
 
 namespace TiMMiT\MySQL\Where;
 
+use Iterator;
+use Countable;
+use Stringable;
 use TiMMiT\MySQL\DB;
 use TiMMiT\MySQL\DBException;
 
 /**
  * Where Collection
  */
-class Collection
+class Collection implements Iterator, Countable, Stringable
 {
     /**
      * Array of the Collection
@@ -27,6 +30,13 @@ class Collection
      * @var array
      */
     private array $array = array();
+
+    /**
+     * position of the Collection
+     *
+     * @var int
+     */
+    private int $position = 0;
 
     /**
      * contains operator of Collection (AND/OR/NOT)
@@ -47,6 +57,7 @@ class Collection
         if (!is_null($array)) {
             $this->array = $array;
         }
+        $this->position = 0;
     }
 
     /**
@@ -87,10 +98,71 @@ class Collection
     {
         if ($item instanceof Param || $item instanceof Collection) {
             $this->array[] = $item;
+            ++$this->position;
         } else {
             throw new DBException("Can only add Param or Collection to collection", 9901);
         }
         return $this;
+    }
+
+    /**
+     * @inheritDoc
+     *
+     * @return int
+     */
+    public function key(): int
+    {
+        return $this->position;
+    }
+
+    /**
+     * @inheritDoc
+     *
+     * @return Param
+     */
+    public function current(): Param
+    {
+        return $this->array[$this->position];
+    }
+
+    /**
+     * @inheritDoc
+     *
+     * @return void
+     */
+    public function next(): void
+    {
+        ++$this->position;
+    }
+
+    /**
+     * @inheritDoc
+     *
+     * @return bool
+     */
+    public function valid(): bool
+    {
+        return isset($this->array[$this->position]);
+    }
+
+    /**
+     * @inheritDoc
+     *
+     * @return void
+     */
+    public function rewind(): void
+    {
+        $this->position = 0;
+    }
+
+    /**
+     * @inheritDoc
+     *
+     * @return int
+     */
+    public function count(): int
+    {
+        return count($this->array);
     }
 
     /**
@@ -100,6 +172,7 @@ class Collection
      */
     public function popLastElementOff(): mixed
     {
+        $this->rewind();
         return array_pop($this->array);
     }
 
@@ -110,11 +183,31 @@ class Collection
      */
     public function popFirstElementOff(): mixed
     {
+        $this->rewind();
         return array_shift($this->array);
     }
 
     /**
-     * generate string of object
+     * remove element of collection
+     *
+     * @param int $position
+     *
+     * @return bool
+     */
+    public function remove(int $position): bool
+    {
+        if (isset($this->array[$position])) {
+            if ($position == $this->position) {
+                $this->rewind();
+            }
+            unset($this->array[$position]);
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * @inheritDoc
      *
      * @return string
      */

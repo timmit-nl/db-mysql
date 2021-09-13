@@ -13,13 +13,15 @@ declare(strict_types=1);
 
 namespace TiMMiT\MySQL\Where;
 
+use Stringable;
+
 use TiMMiT\MySQL\DB;
 use TiMMiT\MySQL\DBException;
 
 /**
  * Where Param
  */
-class Param
+class Param implements Stringable
 {
     /**
      * fieldname
@@ -313,7 +315,7 @@ class Param
     }
 
     /**
-     * generate string of object
+     * @inheritDoc
      *
      * @return string
      */
