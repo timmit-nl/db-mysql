@@ -192,7 +192,7 @@ class Collection implements Iterator, Countable, Stringable
      *
      * @param int $position
      *
-     * @return mixed
+     * @return bool
      */
     public function remove(int $position): bool
     {
