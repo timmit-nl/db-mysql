@@ -127,6 +127,8 @@ class Collection implements Iterator, Countable, Stringable
 
     /**
      * @inheritDoc
+     *
+     * @return void
      */
     public function next(): void
     {
@@ -135,6 +137,8 @@ class Collection implements Iterator, Countable, Stringable
 
     /**
      * @inheritDoc
+     *
+     * @return bool
      */
     public function valid(): bool
     {
@@ -143,6 +147,8 @@ class Collection implements Iterator, Countable, Stringable
 
     /**
      * @inheritDoc
+     *
+     * @return void
      */
     public function rewind(): void
     {
@@ -153,7 +159,6 @@ class Collection implements Iterator, Countable, Stringable
      * @inheritDoc
      *
      * @return int
-
      */
     public function count(): int
     {
