@@ -106,7 +106,7 @@ class Collection implements Iterator, Countable, Stringable
     }
 
     /**
-     * @inheritDoc
+     * {@inheritDoc}
      */
     public function key(): int
     {
@@ -122,7 +122,7 @@ class Collection implements Iterator, Countable, Stringable
     }
 
     /**
-     * @inheritDoc
+     * {@inheritDoc}
      */
     public function next(): void
     {
@@ -138,7 +138,7 @@ class Collection implements Iterator, Countable, Stringable
     }
 
     /**
-     * @inheritDoc
+     * {@inheritDoc}
      */
     public function rewind(): void
     {
@@ -146,7 +146,7 @@ class Collection implements Iterator, Countable, Stringable
     }
 
     /**
-     * @inheritDoc
+     * {@inheritDoc}
      */
     public function count(): int
     {
@@ -178,6 +178,8 @@ class Collection implements Iterator, Countable, Stringable
     /**
      * remove element of collection
      *
+     * @param int $position
+     *
      * @return mixed
      */
     public function remove(int $position): bool
@@ -193,7 +195,7 @@ class Collection implements Iterator, Countable, Stringable
     }
 
     /**
-     * @inheritDoc
+     * {@inheritDoc}
      */
     public function __toString(): string
     {
