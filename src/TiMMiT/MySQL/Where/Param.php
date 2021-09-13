@@ -315,7 +315,9 @@ class Param implements Stringable
     }
 
     /**
-     * {@inheritDoc}
+     * @inheritDoc
+     *
+     * @return string
      */
     public function __toString(): string
     {

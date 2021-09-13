@@ -107,6 +107,8 @@ class Collection implements Iterator, Countable, Stringable
 
     /**
      * {@inheritDoc}
+     *
+     * @return int
      */
     public function key(): int
     {
@@ -114,6 +116,8 @@ class Collection implements Iterator, Countable, Stringable
     }
 
     /**
+     * {@inheritDoc}
+     *
      * @return Param
      */
     public function current(): Param
@@ -147,6 +151,9 @@ class Collection implements Iterator, Countable, Stringable
 
     /**
      * {@inheritDoc}
+     *
+     * @return int
+
      */
     public function count(): int
     {
@@ -196,6 +203,8 @@ class Collection implements Iterator, Countable, Stringable
 
     /**
      * {@inheritDoc}
+     *
+     * @return string
      */
     public function __toString(): string
     {
