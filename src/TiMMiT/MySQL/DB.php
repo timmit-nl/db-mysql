@@ -590,8 +590,8 @@ class DB
     public static function getWhereFromParam($param = false, string $table = ''): string
     {
         self::addToStats(__FUNCTION__);
-        if (is_object($param) && ($param instanceof Collection || $param instanceof Param)) {
-            $where = (string)$param;
+        if (is_object($param) && ($param instanceof Collection)) {
+            $where = self::getWhereFromCollection($param);
         } elseif (is_array($param) && !empty($param)) {
             $where = "(";
             $divider_operator = 'AND';
@@ -663,6 +663,18 @@ class DB
             $where = "(1=1)";
         }
         return $where;
+    }
+
+    /**
+     * Make where statement from Collection
+     * @param Collection $collection paramater
+     *
+     * @return string
+     */
+    public static function getWhereFromCollection(Collection $collection): string
+    {
+        self::addToStats(__FUNCTION__);
+        return (string)$collection;
     }
 
     /**

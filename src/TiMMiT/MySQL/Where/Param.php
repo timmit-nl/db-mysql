@@ -215,30 +215,30 @@ class Param implements Stringable
     }
 
     /**
-     * in sql
+     * in query
      *
      * @param string $value
      *
      * @return Param
      */
-    public function inSql(string $value): Param
+    public function inQuery(string $value): Param
     {
         $this->value = $value;
-        $this->operator = 'IN SQL';
+        $this->operator = 'IN QUERY';
         return $this;
     }
 
     /**
-     * not in sql
+     * not in query
      *
      * @param string $value
      *
      * @return Param
      */
-    public function notSql(string $value): Param
+    public function notInQuery(string $value): Param
     {
         $this->value = $value;
-        $this->operator = 'NOT IN SQL';
+        $this->operator = 'NOT IN QUERY';
         return $this;
     }
 
@@ -274,10 +274,11 @@ class Param implements Stringable
                 return "NULL";
             case 'string':
                 // if IN or NOT IN, don't escape string because it is SQL
-                switch (substr($this->operator, -3)) {
-                    case 'SQL':
-                        $this->operator = substr($this->operator, 0, -4);
-                        return $this->value;
+                switch (substr($this->operator, -5)) {
+                    case 'QUERY':
+                        $this->operator = substr($this->operator, 0, -6);
+
+                        return "(" . rtrim($this->value, ";") . ")";
                     default:
                         $value = DB::clean4DB($value);
                         break;
