@@ -3,14 +3,18 @@
 /**
  * A very simple class for using MySQL.
  *
- * PHP version 7.2+
+ * PHP version 7.4+
  *
  * @package TiMMiT/DB-MySQL
  * @author  Tim Schoondergang <tim.schoondergang@TiMMiT.nl>
  */
-/** */
+
+declare(strict_types=1);
 
 namespace TiMMiT\MySQL;
+
+use TiMMiT\MySQL\Where\Collection;
+use TiMMiT\MySQL\Where\Param;
 
 /**
  * MySQL DB connection.
@@ -22,33 +26,33 @@ class DB
      *
      * @var array
      */
-    public static $var = array();
+    protected static array $config = array();
 
     /**
      * The config fallback vars.
      *
      * @var array
      */
-    public static $fallback = array();
+    protected static $fallback = array();
 
     /**
-     * The backup active boolean.
+     * The backup active bool.
      *
-     * @var boolean
+     * @var bool
      */
-    public static $fallbackActive = false;
+    public static bool $fallbackActive = false;
 
     /**
      * The config write vars.
      *
      * @var array
      */
-    public static $write = array();
+    protected static $write = array();
 
     /**
-     * The write active boolean.
+     * The write active bool.
      *
-     * @var boolean
+     * @var bool
      */
     public static $writeActive = false;
 
@@ -57,104 +61,143 @@ class DB
      *
      * @var int
      */
-    public static $max_deadlock_count = 5;
+    public static int $max_deadlock_count = 5;
 
     /**
      * Sleep multiplier with a deadlock
      *
      * @var int
      */
-    public static $sleep_deadlock_multiplier = 1;
+    public static int $sleep_deadlock_multiplier = 1;
 
     /**
      * Max tries before failure by gone away
      *
      * @var int
      */
-    public static $max_goneaway_count = 5;
+    public static int $max_goneaway_count = 5;
 
     /**
      * Sleep multiplier with a deadlock
      *
      * @var float
      */
-    public static $sleep_goneaway_multiplier = 1.5;
+    public static float $sleep_goneaway_multiplier = 1.5;
 
     /**
      * The stats vars.
      *
      * @var array
      */
-    public static $stats = array();
+    protected static array $stats = array();
 
     /**
      * Created DB connection
      * @var \mysqli
      */
-    public static $mlink;
+    protected static $mlink;
 
     /**
      * Created DBwrite connection
      * @var \mysqli|null
      */
-    public static $mlinkWrite;
+    protected static $mlinkWrite;
 
     /**
      * The default charset.
      *
      * @var string
      */
-    public static $charset = "utf8mb4";
+    protected static string $charset = "utf8mb4";
 
     /**
      * The mysqliReportingExceptionOn.
      *
      * @var int
      */
-    private static $mysqliReportingExceptionOn = MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT;
+    private static int $mysqliReportingExceptionOn = MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT;
 
     /**
      * The mysqliReportingExceptionOff.
      *
      * @var int
      */
-    private static $mysqliReportingExceptionOff = MYSQLI_REPORT_OFF;
+    private static int $mysqliReportingExceptionOff = MYSQLI_REPORT_OFF;
+
+
+    /**
+     * The wsrepSupport.
+     *
+     * @var bool
+     */
+    private static bool $wsrepSupport = false;
+
+    /**
+     * setConfigValue
+     * @param string $field
+     * @param mixed $value
+     * @return bool
+     */
+    public static function setConfigValue(string $field, $value): bool
+    {
+        if (isset(self::${$field})) {
+            self::${$field} = $value;
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * getConfigValue
+     * @param string $field
+     * @return mixed
+     */
+    public static function getConfigValue(string $field)
+    {
+        if (isset(self::${$field})) {
+            return self::${$field};
+        }
+        return null;
+    }
 
     /**
      * Class constructor.
-     * @param array $configVar      settings as assoc array
-     * @param array $writeVar      settings as assoc array
-     * @param array $fallbackVar      settings as assoc array
+     * @param array $config   settings as assoc array
+     * @param array $write    settings as assoc array
+     * @param array $fallback settings as assoc array
      * @return void
      */
-    function __construct($configVar, $writeVar = array(), $fallbackVar = array())
+    public function __construct(array $config, array $write = array(), array $fallback = array())
     {
-        if (is_array($configVar)) {
-            self::$var = $configVar;
+        if (is_array($config)) {
+            self::$config = $config;
         }
-        if (is_array($writeVar)) {
-            self::$write = $writeVar;
+        if (is_array($write)) {
+            self::$write = $write;
         }
-        if (is_array($fallbackVar)) {
-            self::$fallback = $fallbackVar;
+        if (is_array($fallback)) {
+            self::$fallback = $fallback;
         }
         self::connect();
     }
 
     /**
      * Connect to DB
+     *
      * @return void
+     *
+     * @throws DBException If the connection fails completly.
      */
-    public static function connect()
+    public static function connect(): void
     {
         self::addToStats(__FUNCTION__);
 
         mysqli_report(self::$mysqliReportingExceptionOn);
 
         try {
-            self::$mlink = mysqli_connect(self::$var['host'], self::$var['username'], self::$var['password'], self::$var['database'], (int)self::$var['port']);
+            self::$mlink = mysqli_connect(self::$config['host'], self::$config['username'], self::$config['password'], self::$config['database'], (int)self::$config['port']);
             self::$writeActive = false;
-            if (!empty(self::$write) && self::$var != self::$write && !empty(self::$write['host'])) {
+            if (!empty(self::$write) && self::$config != self::$write && !empty(self::$write['host'])) {
                 self::$mlinkWrite = mysqli_connect(self::$write['host'], self::$write['username'], self::$write['password'], self::$write['database'], (int)self::$write['port']);
                 self::$writeActive = true;
             }
@@ -175,7 +218,8 @@ class DB
         }
         if (self::$writeActive && self::ping(true)) {
             mysqli_set_charset(self::$mlinkWrite, self::$charset);
-            DB::setWsrepSyncWait(true);
+            self::$wsrepSupport = DB::checkIfWsrep();
+            self::setWsrepSyncWait(true);
         }
     }
 
@@ -183,7 +227,7 @@ class DB
      * Disconnect to DB
      * @return void
      */
-    public static function disconnect()
+    public static function disconnect(): void
     {
         try {
             self::addToStats(__FUNCTION__);
@@ -202,7 +246,7 @@ class DB
      * reconnect to DB
      * @return void
      */
-    public static function reconnect()
+    public static function reconnect(): void
     {
         self::addToStats(__FUNCTION__);
         self::disconnect();
@@ -211,10 +255,10 @@ class DB
 
     /**
      * ping to DB
-     * @param boolean $writeNode
-     * @return boolean
+     * @param bool $writeNode
+     * @return bool
      */
-    public static function ping($writeNode = false)
+    public static function ping(bool $writeNode = false): bool
     {
         self::addToStats(__FUNCTION__);
         if ($writeNode) {
@@ -244,13 +288,17 @@ class DB
 
     /**
      * Update Query function
+     *
      * @param string $query
-     * @param boolean $writeQuery
-     * @param int $resultmode
+     * @param bool $writeQuery
+     * @param int|null $resultmode
      * @param int $count
-     * @return \mysqli_result|boolean
+     *
+     * @return \mysqli_result|bool
+     *
+     * @throws DBException As the sql fails completly.
      */
-    private static function query($query, $writeQuery = false, $resultmode = NULL, $count = 0)
+    private static function query(string $query, bool $writeQuery = false, ?int $resultmode = null, int $count = 0)
     {
         if ($writeQuery && self::$writeActive) {
             $mlink = self::$mlinkWrite;
@@ -311,10 +359,10 @@ class DB
     /**
      * Update Query function
      * @param string $query
-     * @param boolean $writeNode
-     * @return boolean
+     * @param bool $writeNode
+     * @return bool
      */
-    public static function updateQuery($query, $writeNode = true)
+    public static function updateQuery(string $query, bool $writeNode = true)
     {
         self::addToStats(__FUNCTION__);
         return self::query($query, $writeNode);
@@ -323,10 +371,10 @@ class DB
     /**
      * Delete Query function
      * @param string $query
-     * @param boolean $writeNode
-     * @return boolean
+     * @param bool $writeNode
+     * @return bool
      */
-    public static function deleteQuery($query, $writeNode = true)
+    public static function deleteQuery(string $query, bool $writeNode = true)
     {
         self::addToStats(__FUNCTION__);
         return self::query($query, $writeNode);
@@ -335,10 +383,10 @@ class DB
     /**
      * execute a query without result function
      * @param string $query
-     * @param boolean $writeNode
-     * @return boolean
+     * @param bool $writeNode
+     * @return bool
      */
-    public static function executeQuery($query, $writeNode = true)
+    public static function executeQuery(string $query, bool $writeNode = true)
     {
         self::addToStats(__FUNCTION__);
         return self::query($query, $writeNode);
@@ -348,10 +396,10 @@ class DB
      * Select Query function
      * @param string $query
      * @param string $keyField
-     * @param boolean $writeNode
+     * @param bool $writeNode
      * @return array
      */
-    public static function selectQuery($query, $keyField = '', $writeNode = false)
+    public static function selectQuery(string $query, string $keyField = '', bool $writeNode = false): array
     {
         self::addToStats(__FUNCTION__);
         $result = self::query($query, $writeNode);
@@ -373,22 +421,22 @@ class DB
     /**
      * Insert Query function
      * @param string $query
-     * @param boolean $writeNode
-     * @return int
+     * @param bool $writeNode
+     * @return int|string
      */
-    public static function insertQuery($query, $writeNode = true)
+    public static function insertQuery(string $query, bool $writeNode = true)
     {
         self::addToStats(__FUNCTION__);
-        self::query($query, $writeNode);
+        self::query($query, $writeNode); //test
         return mysqli_insert_id(self::$mlink);
     }
 
     /**
      * Check if table exists
      * @param string $table
-     * @return boolean
+     * @return bool
      */
-    public static function checkTableExist($table)
+    public static function checkTableExist(string $table): bool
     {
         self::addToStats(__FUNCTION__);
         return self::checkForResult("SHOW TABLES LIKE '" . $table . "';");
@@ -398,9 +446,9 @@ class DB
      * Check if column exists in table
      * @param string $table
      * @param string $column
-     * @return boolean
+     * @return bool
      */
-    public static function checkIfColumnExistInTable($table, $column)
+    public static function checkIfColumnExistInTable(string $table, string $column): bool
     {
         self::addToStats(__FUNCTION__);
         return self::checkForResult("SHOW COLUMNS FROM `" . $table . "` LIKE '" . $column . "';");
@@ -409,9 +457,9 @@ class DB
     /**
      * Check if query gives result
      * @param string $query
-     * @return boolean
+     * @return bool
      */
-    public static function checkForResult($query)
+    public static function checkForResult(string $query): bool
     {
         self::addToStats(__FUNCTION__);
         $result = self::query($query);
@@ -424,12 +472,12 @@ class DB
 
     /**
      * Check if field is Null
-     * @param string $table table where you want to check the field
-     * @param string $field colomn to check
+     * @param string $table             table where you want to check the field
+     * @param string $field             colomn to check
      * @param string $primaryKeyFieldID primary id
-     * @return boolean
+     * @return bool
      */
-    public static function checkIsNull($table, $field, $primaryKeyFieldID)
+    public static function checkIsNull(string $table, string $field, string $primaryKeyFieldID): bool
     {
         self::addToStats(__FUNCTION__);
         $primaryKeyFieldResult = self::query("SHOW INDEX FROM " . $table);
@@ -441,15 +489,12 @@ class DB
     /**
      * clean variable for DB against SQL injection
      * @param string $value
-     * @param boolean $key default false
+     * @param bool $key   default false
      * @return string
      */
-    public static function clean4DB($value, $key = false)
+    public static function clean4DB(string $value, bool $key = false): string
     {
         self::addToStats(__FUNCTION__);
-        if (is_object($value)) {
-            throw new DBException('is object:' . var_export($value, true), 999);
-        }
         $value = addcslashes(mysqli_real_escape_string(self::$mlink, $value), "%_");
         if ($key != false) {
             $value = str_replace('\_', "_", $value);
@@ -462,7 +507,7 @@ class DB
      * @param string $value
      * @return string
      */
-    public static function cleanFromDB($value)
+    public static function cleanFromDB(string $value): string
     {
         self::addToStats(__FUNCTION__);
         $value = stripcslashes($value);
@@ -477,7 +522,7 @@ class DB
      * @param string $add
      * @return string
      */
-    public static function makeId($hash = '', $len = 1, $seed = "", $add = '')
+    public static function makeId(string $hash = '', int $len = 1, $seed = "", string $add = ''): string
     {
         self::addToStats(__FUNCTION__);
         switch ($hash):
@@ -530,7 +575,7 @@ class DB
      * Get the Charset of connection
      * @return string
      */
-    public static function getCharSet()
+    public static function getCharSet(): string
     {
         self::addToStats(__FUNCTION__);
         return mysqli_character_set_name(self::$mlink);
@@ -538,14 +583,16 @@ class DB
 
     /**
      * Make where statement from parameters
-     * @param array|false $param      paramater or parameters as assoc array
+     * @param array|false $param paramater or parameters as assoc array
      * @param string $table
      * @return string
      */
-    public static function getWhereFromParam($param = false, $table = '')
+    public static function getWhereFromParam($param = false, string $table = ''): string
     {
         self::addToStats(__FUNCTION__);
-        if (is_array($param) && !empty($param)) {
+        if (is_object($param) && ($param instanceof Collection)) {
+            $where = self::getWhereFromCollection($param);
+        } elseif (is_array($param) && !empty($param)) {
             $where = "(";
             $divider_operator = 'AND';
             foreach ($param as $par) {
@@ -591,7 +638,7 @@ class DB
                                     $where .= "`" . self::clean4DB($par['param'], true) . "` " . $par['operator'] . " (" . $value_txt . ") " . self::clean4DB($divider_operator) . " ";
                                     break;
                                 default:
-                                    $value = self::clean4DB($par['value']);
+                                    $value = self::clean4DB((string)$par['value']);
                                     if (isset($par['dont_escape_special_characters']) && $par['dont_escape_special_characters'] == true) {
                                         $value = str_replace('#', "_", $value);
                                         $value = str_replace('\_', "_", $value);
@@ -619,12 +666,24 @@ class DB
     }
 
     /**
+     * Make where statement from Collection
+     * @param Collection $collection paramater
+     *
+     * @return string
+     */
+    public static function getWhereFromCollection(Collection $collection): string
+    {
+        self::addToStats(__FUNCTION__);
+        return (string)$collection;
+    }
+
+    /**
      * dbDelta on DB
-     * @param string $queries
-     * @param boolean $execute
+     * @param string|array $queries
+     * @param bool $execute
      * @return array
      */
-    public static function dbDelta($queries = '', $execute = true)
+    public static function dbDelta($queries = '', bool $execute = true): array
     {
         self::addToStats(__FUNCTION__);
         // Separate individual queries into an array
@@ -636,9 +695,9 @@ class DB
         /**
          * Filter the dbDelta SQL queries.
          *
-         * @since 3.3.0
-         *
          * @param array $queries An array of dbDelta SQL queries.
+         *
+         * @since 3.3.0
          */
         $cqueries = array(); // Creation Queries
         $iqueries = array(); // Insertion Queries
@@ -684,7 +743,6 @@ class DB
 
             // For every field line specified in the query.
             foreach ($flds as $fld) {
-
                 // Extract the field name.
                 preg_match("|^([^ ]*)|", trim($fld), $fvals);
                 $fieldname = trim($fvals[1], '`');
@@ -713,10 +771,8 @@ class DB
 
             // For every field in the table.
             foreach ($tablefields as $tablefield) {
-
                 // If the table field exists in the field array ...
                 if (array_key_exists(strtolower($tablefield['Field']), $cfields)) {
-
                     // Get the field type from the query.
                     preg_match("|" . $tablefield['Field'] . " ([^ ]*( unsigned)*( zerofill)?)|i", $cfields[strtolower($tablefield['Field'])], $matches);
                     //echo "<hr/><pre>\n".print_r(array("|".$tablefield['Field']." ([^ ]*( unsigned)*( zerofill)?)|i", $cfields[strtolower($tablefield['Field'])],$matches), true)."</pre><hr/>";
@@ -764,7 +820,6 @@ class DB
 
                 // For every index in the table.
                 foreach ($tableindices as $tableindex) {
-
                     // Add the index to the index data array.
                     $keyname = $tableindex['Key_name'];
                     $index_ary[$keyname]['columns'][] = array('fieldname' => $tableindex['Column_name'], 'subpart' => $tableindex['Sub_part']);
@@ -774,7 +829,6 @@ class DB
 
                 // For each actual index in the index array.
                 foreach ($index_ary as $index_name => $index_data) {
-
                     // Build a create string to compare to the query.
                     $index_string = '';
                     if ($index_name == 'PRIMARY') {
@@ -793,7 +847,9 @@ class DB
 
                     // For each column in the index.
                     foreach ($index_data['columns'] as $column_data) {
-                        if ($index_columns != '') $index_columns .= ',';
+                        if ($index_columns != '') {
+                            $index_columns .= ',';
+                        }
 
                         // Add the field to the column list string.
                         $index_columns .= "`" . $column_data['fieldname'] . "`";
@@ -844,11 +900,13 @@ class DB
 
     /**
      * clean variable from DB against slashes against SQL injection for export csv
+     *
      * @param string $value
      * @param string $key
+     *
      * @return void
      */
-    public static function cleanFromDB4Csv(&$value, $key)
+    public static function cleanFromDB4Csv(string &$value, string $key)
     {
         self::addToStats(__FUNCTION__);
         $value = self::cleanFromDB($value);
@@ -856,17 +914,17 @@ class DB
 
     /**
      * Export function 2 csv
-     * @param string $table table
-     * @param array $fields if empty=* else array of fields
-     * @param array $params params array for where
-     * @param string|boolean $file path to file, false to tempfile
-     * @param boolean $return true return csv else return rows of csv
-     * @param string $delimiter delimiter of csv default ;
-     * @param string $enclosure enclosure of csv default "
+     * @param string $table       table
+     * @param array $fields      if empty=* else array of fields
+     * @param array $params      params array for where
+     * @param string|bool $file        path to file, false to tempfile
+     * @param bool $return      true return csv else return rows of csv
+     * @param string $delimiter   delimiter of csv default ;
+     * @param string $enclosure   enclosure of csv default "
      * @param string $escape_char escape_char of csv default \
      * @return int|string
      */
-    public static function export2Csv($table, $fields = array(), $params = array(), $file = false, $return = false, $delimiter = ';', $enclosure = '"', $escape_char = "\\")
+    public static function export2Csv(string $table, array $fields = array(), array $params = array(), $file = false, bool $return = false, string $delimiter = ';', string $enclosure = '"', string $escape_char = "\\")
     {
         self::addToStats(__FUNCTION__);
         $fieldsTxt = '*';
@@ -919,33 +977,63 @@ class DB
 
     /**
      * start a transaction
-     * @param boolean $writeNode
+     * @param bool $writeNode
      * @return void
      */
-    public static function startTransaction($writeNode = true)
+    public static function startTransaction(bool $writeNode = true): void
     {
-        self::executeQuery("SET autocommit=0;");
-        self::executeQuery("SET unique_checks=0;");
-        self::executeQuery("SET foreign_key_checks=0");
-        self::executeQuery("START TRANSACTION;");
+        self::executeQuery("SET autocommit=0;", $writeNode);
+        self::executeQuery("SET unique_checks=0;", $writeNode);
+        self::executeQuery("SET foreign_key_checks=0", $writeNode);
+        self::executeQuery("START TRANSACTION;", $writeNode);
+    }
+
+    /**
+     * commit a transaction
+     * @param bool $writeNode
+     * @return void
+     */
+    public static function commitTransaction(bool $writeNode = true): void
+    {
+        self::executeQuery("COMMIT;", $writeNode);
+    }
+
+    /**
+     * rollback a transaction
+     * @param bool $writeNode
+     * @return void
+     */
+    public static function rollbackTransaction(bool $writeNode = true): void
+    {
+        self::executeQuery("ROLLBACK;", $writeNode);
     }
 
     /**
      * stop a transaction
-     * @param boolean $commit
-     * @param boolean $writeNode
+     * @param bool $commit
+     * @param bool $writeNode
      * @return void
      */
-    public static function endTransaction($commit, $writeNode = true)
+    public static function endTransaction(bool $commit, bool $writeNode = true): void
     {
         if ($commit) {
-            self::executeQuery("COMMIT;");
+            self::commitTransaction($writeNode);
         } else {
-            self::executeQuery("ROLLBACK;");
+            self::rollbackTransaction($writeNode);
         }
-        self::executeQuery("SET autocommit=1;");
-        self::executeQuery("SET unique_checks=1;");
-        self::executeQuery("SET foreign_key_checks=1;");
+        self::executeQuery("SET autocommit=1;", $writeNode);
+        self::executeQuery("SET unique_checks=1;", $writeNode);
+        self::executeQuery("SET foreign_key_checks=1;", $writeNode);
+    }
+
+    /**
+     * Check if Wsrep cluster is active
+     * @return bool
+     */
+    public static function checkIfWsrep(): bool
+    {
+        self::addToStats(__FUNCTION__);
+        return self::checkForResult("SHOW SESSION STATUS LIKE 'wsrep_cluster_status';");
     }
 
     /**
@@ -955,13 +1043,15 @@ class DB
      */
     public static function setWsrepSyncWait(bool $on = true): void
     {
-        try {
-            if ($on) {
-                mysqli_query(self::$mlink, "SET SESSION wsrep_sync_wait = 1;");
-            } else {
-                mysqli_query(self::$mlink, "SET SESSION wsrep_sync_wait = 0;");
+        if (self::$wsrepSupport) {
+            try {
+                if ($on) {
+                    mysqli_query(self::$mlink, "SET SESSION wsrep_sync_wait = 1;");
+                } else {
+                    mysqli_query(self::$mlink, "SET SESSION wsrep_sync_wait = 0;");
+                }
+            } catch (\Exception $ex) {
             }
-        } catch (\Exception $ex) {
         }
     }
 
@@ -970,7 +1060,7 @@ class DB
      * @param string $queryType Soort Query
      * @return void
      */
-    private static function addToStats($queryType = '')
+    private static function addToStats(string $queryType = ''): void
     {
         if (!isset(self::$stats[$queryType])) {
             self::$stats[$queryType] = 0;
@@ -982,7 +1072,7 @@ class DB
      * get the stats
      * @return array stats
      */
-    public static function getStats()
+    public static function getStats(): array
     {
         return self::$stats;
     }
