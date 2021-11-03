@@ -394,11 +394,11 @@ class DB
 
     /**
      * Select Query function
-     * 
+     *
      * @param string $query
      * @param string $keyField
      * @param bool $writeNode
-     * 
+     *
      * @return array
      */
     public static function selectQuery(string $query, string $keyField = '', bool $writeNode = false): array
@@ -408,11 +408,11 @@ class DB
 
     /**
      * Select Query function
-     * 
+     *
      * @param string $query
      * @param string $keyField
      * @param bool $writeNode
-     * 
+     *
      * @return array
      */
     public static function selectQueryToStrings(string $query, string $keyField = '', bool $writeNode = false): array
