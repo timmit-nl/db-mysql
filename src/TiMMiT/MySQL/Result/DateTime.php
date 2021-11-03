@@ -40,7 +40,7 @@ final class DateTime extends \DateTime implements Stringable
     /**
      * Parse a string into a new DateTime object according to the specified format
      *
-     * @param string $format Format accepted by date().
+     * @param string $format   Format accepted by date().
      * @param string $datetime String representing the time.
      * @param null|\DateTimeZone $timezone
      *
