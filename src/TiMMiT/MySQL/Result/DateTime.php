@@ -44,7 +44,7 @@ final class DateTime extends \DateTime implements Stringable
      * @param string $datetime String representing the time.
      * @param null|\DateTimeZone $timezone
      *
-     * @return self|null
+     * @return DateTime|null
      */
     public static function createFromFormat($format, $datetime, ?\DateTimeZone $timezone = null): ?DateTime
     {
