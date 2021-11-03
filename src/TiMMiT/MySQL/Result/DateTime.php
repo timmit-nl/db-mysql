@@ -13,13 +13,12 @@ declare(strict_types=1);
 
 namespace TiMMiT\MySQL\Result;
 
-use DateTime as GlobalDateTime;
 use Stringable;
 use TiMMiT\MySQL\DB;
 use TiMMiT\MySQL\DBException;
 
 /**
- * Where Collection
+ * Result DateTime
  */
 class DateTime extends \DateTime implements Stringable
 {
@@ -37,6 +36,10 @@ class DateTime extends \DateTime implements Stringable
 
     /**
      * @inheritDoc
+     *
+     * @param string $format
+     * @param string $datetime
+     * @param DateTimeZone|null $timezone
      *
      * @return self|null
      */
