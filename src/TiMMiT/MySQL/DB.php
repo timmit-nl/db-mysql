@@ -476,7 +476,6 @@ class DB
             while ($row = $result->fetch_assoc()) {
                 foreach ($changeFields as $field => $type) {
                     if (isset($changeFields[$field]) && !is_null($row[$field])) {
-                        // var_dump($row[$field]);
                         switch ($changeFields[$field]) {
                             case 'int':
                             case 'float':
