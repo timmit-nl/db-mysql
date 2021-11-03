@@ -452,9 +452,6 @@ class DB
             $changeFields = array();
             $fields = $result->fetch_fields();
             foreach ($fields as $field) {
-                if ($field->table == 'funnel_naverrekening') {
-                    // var_dump($field);
-                }
                 switch ($field->type) {
                     case MYSQLI_TYPE_TINY:
                     case MYSQLI_TYPE_SHORT:
@@ -475,9 +472,6 @@ class DB
                         $changeFields[$field->name] = 'string'; //(string is default so do nothing)
                         break;
                 }
-            }
-            if ($field->table == 'Spolis') {
-                var_dump($changeFields);
             }
             while ($row = $result->fetch_assoc()) {
                 foreach ($changeFields as $field => $type) {
