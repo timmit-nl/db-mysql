@@ -20,12 +20,15 @@ use TiMMiT\MySQL\DBException;
 /**
  * Result DateTime
  */
-class DateTime extends \DateTime implements Stringable
+final class DateTime extends \DateTime implements Stringable
 {
+    /**
+     * @var string $defaultFormat Y-m-d H:i:s
+     */
     public string $defaultFormat = 'Y-m-d H:i:s';
 
     /**
-     * @inheritDoc
+     * Returns date formatted according to default format.
      *
      * @return string
      */
@@ -35,11 +38,11 @@ class DateTime extends \DateTime implements Stringable
     }
 
     /**
-     * @inheritDoc
+     * Parse a string into a new DateTime object according to the specified format
      *
-     * @param string $format
-     * @param string $datetime
-     * @param DateTimeZone|null $timezone
+     * @param string $format Format accepted by date().
+     * @param string $datetime String representing the time.
+     * @param null|\DateTimeZone $timezone
      *
      * @return self|null
      */
