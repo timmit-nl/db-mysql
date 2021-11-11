@@ -307,7 +307,6 @@ class DB
             $mlink = self::$mlink;
             $write = false;
         }
-
         self::addToStats(__FUNCTION__);
         $result = false;
 
