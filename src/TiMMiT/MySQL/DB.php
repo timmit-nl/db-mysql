@@ -621,7 +621,7 @@ class DB
                                         if (!empty($par['value'])) {
                                             $values = array();
                                             foreach ($par['value'] as $value) {
-                                                $value = self::clean4DB($value);
+                                                $value = self::clean4DB((string)$value);
                                                 if (isset($par['dont_escape_special_characters']) && $par['dont_escape_special_characters'] == true) {
                                                     $value = str_replace('#', "_", $value);
                                                     $value = str_replace('\_', "_", $value);
@@ -900,15 +900,15 @@ class DB
     /**
      * clean variable from DB against slashes against SQL injection for export csv
      *
-     * @param string $value
+     * @param mixed $value
      * @param string $key
      *
      * @return void
      */
-    public static function cleanFromDB4Csv(string &$value, string $key)
+    public static function cleanFromDB4Csv(&$value, string $key): void
     {
         self::addToStats(__FUNCTION__);
-        $value = self::cleanFromDB($value);
+        $value = self::cleanFromDB((string)$value);
     }
 
     /**
