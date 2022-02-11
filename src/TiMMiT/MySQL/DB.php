@@ -290,7 +290,7 @@ class DB
                 $mlink = self::$mlink;
             }
         }
-        if (isset($mlink)) {
+        if (!isset($mlink)) {
             return false;
         }
 
