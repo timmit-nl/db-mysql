@@ -156,7 +156,7 @@ class Collection implements Iterator, Countable, Stringable
      *
      * @return Param|Collection
      */
-    public function current(): Param
+    public function current(): object
     {
         return $this->array[$this->position];
     }

@@ -521,7 +521,9 @@ class DB
         $primaryKeyFieldResult = self::query("SHOW INDEX FROM " . $table);
         if ($primaryKeyFieldResult instanceof \mysqli_result) {
             $primaryKeyFieldRow = mysqli_fetch_array($primaryKeyFieldResult);
-            return self::checkForResult("SELECT " . $field . " FROM " . $table . " WHERE " . $primaryKeyFieldRow["Column_name"] . " = " . $primaryKeyFieldID . " AND " . $field . " IS NULL;");
+            if (isset($primaryKeyFieldRow['Column_name'])) {
+                return self::checkForResult("SELECT " . $field . " FROM " . $table . " WHERE " . $primaryKeyFieldRow['Column_name'] . " = " . $primaryKeyFieldID . " AND " . $field . " IS NULL;");
+            }
         }
         return false;
     }
@@ -1017,16 +1019,14 @@ class DB
 
             if ($result instanceof \mysqli_result) {
                 while ($row = $result->fetch_assoc()) {
-                    if (!is_null($row)) {
-                        if ($a == 0) {
-                            fputcsv($fp, array_keys($row), $delimiter, $enclosure, $escape_char);
-                        }
-                        foreach ($row as $k => $v) {
-                            self::cleanFromDB4Csv($v);
-                        }
-                        fputcsv($fp, $row, $delimiter, $enclosure, $escape_char);
-                        $a++;
+                    if ($a == 0) {
+                        fputcsv($fp, array_keys($row), $delimiter, $enclosure, $escape_char);
                     }
+                    foreach ($row as $k => $v) {
+                        self::cleanFromDB4Csv($v);
+                    }
+                    fputcsv($fp, $row, $delimiter, $enclosure, $escape_char);
+                    $a++;
                 }
                 $result->free();
             }
