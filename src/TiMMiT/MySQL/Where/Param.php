@@ -45,6 +45,13 @@ class Param implements Stringable
     private string $operator = '=';
 
     /**
+     * cleanOperator
+     *
+     * @var ?string
+     */
+    private ?string $cleanOperator = null;
+
+    /**
      * escapeSpecialCharacters
      *
      * @var bool
@@ -269,15 +276,14 @@ class Param implements Stringable
                         throw new DBException("value NULL can only be used with = or !=", 9910);
                 }
                 if ($this->operator != $operator && $changeOperator) {
-                    $this->operator = $operator;
+                    $this->cleanOperator = $operator;
                 }
                 return "NULL";
             case 'string':
                 // if IN or NOT IN, don't escape string because it is SQL
                 switch (substr($this->operator, -5)) {
                     case 'QUERY':
-                        $this->operator = substr($this->operator, 0, -6);
-
+                        $this->cleanOperator = substr($this->operator, 0, -6);
                         return "(" . rtrim($this->value, ";") . ")";
                     default:
                         $value = DB::clean4DB($value);
@@ -296,7 +302,7 @@ class Param implements Stringable
                             break;
                     }
                     if ($this->operator != $operator && $changeOperator) {
-                        $this->operator = $operator;
+                        $this->cleanOperator = $operator;
                     }
                     switch (substr($operator, -4)) {
                         case 'LIKE':
@@ -329,7 +335,11 @@ class Param implements Stringable
             $returnTxt .= "`" . DB::clean4DB($this->table, true) . "`.";
         }
         $returnTxt .= "`" . DB::clean4DB($this->field, true) . "`";
-        $returnTxt .= " " . DB::clean4DB($this->operator);
+        if (!is_null($this->cleanOperator)) {
+            $returnTxt .= " " . DB::clean4DB($this->cleanOperator);
+        } else {
+            $returnTxt .= " " . DB::clean4DB($this->operator);
+        }
         $returnTxt .= " " . $value;
         return $returnTxt;
     }
