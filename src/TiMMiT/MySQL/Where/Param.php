@@ -196,7 +196,7 @@ class Param implements Stringable
     /**
      * in array
      *
-     * @param array $value
+     * @param int[]|float[]|string[] $value
      *
      * @return Param
      */
@@ -210,7 +210,7 @@ class Param implements Stringable
     /**
      * not in array
      *
-     * @param array $value
+     * @param int[]|float[]|string[] $value
      *
      * @return Param
      */

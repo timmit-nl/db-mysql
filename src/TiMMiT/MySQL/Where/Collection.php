@@ -21,13 +21,15 @@ use TiMMiT\MySQL\DBException;
 
 /**
  * Where Collection
+ *
+ * @implements \Iterator<int, Param|Collection>
  */
 class Collection implements Iterator, Countable, Stringable
 {
     /**
      * Array of the Collection
      *
-     * @var array
+     * @var Param[]|Collection[]
      */
     private array $array = array();
 
@@ -49,7 +51,7 @@ class Collection implements Iterator, Countable, Stringable
      * constructor of class
      *
      * @param string $operator
-     * @param array|null $array
+     * @param mixed[]|null $array
      */
     public function __construct(string $operator = 'AND', ?array $array = null)
     {
