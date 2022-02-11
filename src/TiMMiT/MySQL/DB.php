@@ -369,8 +369,10 @@ class DB
 
     /**
      * Update Query function
+     *
      * @param string $query
      * @param bool $writeNode
+     *
      * @return bool
      */
     public static function updateQuery(string $query, bool $writeNode = true)
@@ -381,8 +383,10 @@ class DB
 
     /**
      * Delete Query function
+     *
      * @param string $query
      * @param bool $writeNode
+     *
      * @return bool
      */
     public static function deleteQuery(string $query, bool $writeNode = true)
@@ -393,8 +397,10 @@ class DB
 
     /**
      * execute a query without result function
+     *
      * @param string $query
      * @param bool $writeNode
+     *
      * @return bool
      */
     public static function executeQuery(string $query, bool $writeNode = true)
@@ -410,7 +416,7 @@ class DB
      * @param string $keyField
      * @param bool $writeNode
      *
-     * @return array[]
+     * @return mixed[]
      */
     public static function selectQuery(string $query, string $keyField = '', bool $writeNode = false): array
     {
