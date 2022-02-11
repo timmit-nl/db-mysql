@@ -442,7 +442,7 @@ class DB
      * @param string $keyField
      * @param bool $writeNode
      *
-     * @return array
+     * @return mixed[]
      */
     public static function selectQueryToStrings(string $query, string $keyField = '', bool $writeNode = false): array
     {
@@ -470,7 +470,7 @@ class DB
      * @param string $keyField
      * @param bool $writeNode
      *
-     * @return array
+     * @return mixed[]
      */
     public static function selectQueryToCorrectType(string $query, string $keyField = '', bool $writeNode = false): array
     {
@@ -514,14 +514,14 @@ class DB
                                 if ($row[$field] == '0000-00-00 00:00:00') {
                                     $row[$field] = null;
                                 } else {
-                                    $row[$field] = Result\DateTime::createFromFormat('Y-m-d H:i:s', $row[$field]);
+                                    $row[$field] = Result\DateTime::createFromFormat('Y-m-d H:i:s', (string)$row[$field]);
                                 }
                                 break;
                         }
                     }
                 }
                 if (!empty($keyField) && isset($row[$keyField])) {
-                    $return[$row[$keyField]] = $row;
+                    $return[(string)$row[$keyField]] = $row;
                 } else {
                     $return[] = $row;
                 }
