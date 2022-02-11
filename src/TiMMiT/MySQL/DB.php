@@ -24,14 +24,14 @@ class DB
     /**
      * The config vars.
      *
-     * @var array
+     * @var string[]|int[]
      */
     protected static array $config = array();
 
     /**
      * The config fallback vars.
      *
-     * @var array
+     * @var string[]|int[]
      */
     protected static $fallback = array();
 
@@ -45,7 +45,7 @@ class DB
     /**
      * The config write vars.
      *
-     * @var array
+     * @var string[]|int[]
      */
     protected static $write = array();
 
@@ -87,18 +87,20 @@ class DB
     /**
      * The stats vars.
      *
-     * @var array
+     * @var int[]
      */
     protected static array $stats = array();
 
     /**
      * Created DB connection
+     *
      * @var \mysqli
      */
     protected static $mlink;
 
     /**
      * Created DBwrite connection
+     *
      * @var \mysqli|null
      */
     protected static $mlinkWrite;
@@ -134,8 +136,10 @@ class DB
 
     /**
      * setConfigValue
+     *
      * @param string $field
      * @param mixed $value
+     *
      * @return bool
      */
     public static function setConfigValue(string $field, $value): bool
@@ -149,7 +153,9 @@ class DB
 
     /**
      * getConfigValue
+     *
      * @param string $field
+     *
      * @return mixed
      */
     public static function getConfigValue(string $field)
@@ -162,9 +168,11 @@ class DB
 
     /**
      * Class constructor.
-     * @param array $config   settings as assoc array
-     * @param array $write    settings as assoc array
-     * @param array $fallback settings as assoc array
+     *
+     * @param string[]|int[] $config   settings as assoc array
+     * @param string[]|int[] $write    settings as assoc array
+     * @param string[]|int[] $fallback settings as assoc array
+     *
      * @return void
      */
     public function __construct(array $config, array $write = array(), array $fallback = array())
@@ -225,6 +233,7 @@ class DB
 
     /**
      * Disconnect to DB
+     *
      * @return void
      */
     public static function disconnect(): void
@@ -244,6 +253,7 @@ class DB
 
     /**
      * reconnect to DB
+     *
      * @return void
      */
     public static function reconnect(): void
@@ -255,7 +265,9 @@ class DB
 
     /**
      * ping to DB
+     *
      * @param bool $writeNode
+     *
      * @return bool
      */
     public static function ping(bool $writeNode = false): bool
@@ -393,10 +405,12 @@ class DB
 
     /**
      * Select Query function
+     *
      * @param string $query
      * @param string $keyField
      * @param bool $writeNode
-     * @return array
+     *
+     * @return array[]
      */
     public static function selectQuery(string $query, string $keyField = '', bool $writeNode = false): array
     {
@@ -419,8 +433,10 @@ class DB
 
     /**
      * Insert Query function
+     *
      * @param string $query
      * @param bool $writeNode
+     *
      * @return int|string
      */
     public static function insertQuery(string $query, bool $writeNode = true)
@@ -432,7 +448,9 @@ class DB
 
     /**
      * Check if table exists
+     *
      * @param string $table
+     *
      * @return bool
      */
     public static function checkTableExist(string $table): bool
@@ -443,8 +461,10 @@ class DB
 
     /**
      * Check if column exists in table
+     *
      * @param string $table
      * @param string $column
+     *
      * @return bool
      */
     public static function checkIfColumnExistInTable(string $table, string $column): bool
@@ -455,7 +475,9 @@ class DB
 
     /**
      * Check if query gives result
+     *
      * @param string $query
+     *
      * @return bool
      */
     public static function checkForResult(string $query): bool
@@ -471,9 +493,11 @@ class DB
 
     /**
      * Check if field is Null
+     *
      * @param string $table             table where you want to check the field
      * @param string $field             colomn to check
      * @param string $primaryKeyFieldID primary id
+     *
      * @return bool
      */
     public static function checkIsNull(string $table, string $field, string $primaryKeyFieldID): bool
@@ -487,8 +511,10 @@ class DB
 
     /**
      * clean variable for DB against SQL injection
+     *
      * @param string $value
      * @param bool $key   default false
+     *
      * @return string
      */
     public static function clean4DB(string $value, bool $key = false): string
@@ -503,7 +529,9 @@ class DB
 
     /**
      * clean variable from DB against slashes against SQL injection
+     *
      * @param string $value
+     *
      * @return string
      */
     public static function cleanFromDB(string $value): string
@@ -515,10 +543,12 @@ class DB
 
     /**
      * Make a hashed Id from seed
+     *
      * @param string $hash
      * @param int $len
      * @param mixed $seed
      * @param string $add
+     *
      * @return string
      */
     public static function makeId(string $hash = '', int $len = 1, $seed = "", string $add = ''): string
@@ -572,6 +602,7 @@ class DB
 
     /**
      * Get the Charset of connection
+     *
      * @return string
      */
     public static function getCharSet(): string
@@ -582,8 +613,10 @@ class DB
 
     /**
      * Make where statement from parameters
-     * @param array|false $param paramater or parameters as assoc array
+     *
+     * @param mixed[]|false $param paramater or parameters as assoc array
      * @param string $table
+     *
      * @return string
      */
     public static function getWhereFromParam($param = false, string $table = ''): string
@@ -666,6 +699,7 @@ class DB
 
     /**
      * Make where statement from Collection
+     *
      * @param Collection $collection paramater
      *
      * @return string
@@ -678,9 +712,11 @@ class DB
 
     /**
      * dbDelta on DB
-     * @param string|array $queries
+     *
+     * @param string|string[] $queries
      * @param bool $execute
-     * @return array
+     *
+     * @return string[]
      */
     public static function dbDelta($queries = '', bool $execute = true): array
     {
@@ -913,14 +949,16 @@ class DB
 
     /**
      * Export function 2 csv
+     *
      * @param string $table       table
-     * @param array $fields      if empty=* else array of fields
-     * @param array $params      params array for where
+     * @param string[] $fields      if empty=* else array of fields
+     * @param mixed[] $params      params array for where
      * @param string|bool $file        path to file, false to tempfile
      * @param bool $return      true return csv else return rows of csv
      * @param string $delimiter   delimiter of csv default ;
      * @param string $enclosure   enclosure of csv default "
      * @param string $escape_char escape_char of csv default \
+     *
      * @return int|string
      */
     public static function export2Csv(string $table, array $fields = array(), array $params = array(), $file = false, bool $return = false, string $delimiter = ';', string $enclosure = '"', string $escape_char = "\\")
@@ -976,7 +1014,9 @@ class DB
 
     /**
      * start a transaction
+     *
      * @param bool $writeNode
+     *
      * @return void
      */
     public static function startTransaction(bool $writeNode = true): void
@@ -989,7 +1029,9 @@ class DB
 
     /**
      * commit a transaction
+     *
      * @param bool $writeNode
+     *
      * @return void
      */
     public static function commitTransaction(bool $writeNode = true): void
@@ -999,7 +1041,9 @@ class DB
 
     /**
      * rollback a transaction
+     *
      * @param bool $writeNode
+     *
      * @return void
      */
     public static function rollbackTransaction(bool $writeNode = true): void
@@ -1009,8 +1053,10 @@ class DB
 
     /**
      * stop a transaction
+     *
      * @param bool $commit
      * @param bool $writeNode
+     *
      * @return void
      */
     public static function endTransaction(bool $commit, bool $writeNode = true): void
@@ -1027,6 +1073,7 @@ class DB
 
     /**
      * Check if Wsrep cluster is active
+     *
      * @return bool
      */
     public static function checkIfWsrep(): bool
@@ -1037,7 +1084,9 @@ class DB
 
     /**
      * setWsrepSyncWait
+     *
      * @param bool $on
+     *
      * @return void
      */
     public static function setWsrepSyncWait(bool $on = true): void
@@ -1056,7 +1105,9 @@ class DB
 
     /**
      * add item tot stats
+     *
      * @param string $queryType Soort Query
+     *
      * @return void
      */
     private static function addToStats(string $queryType = ''): void
@@ -1069,7 +1120,8 @@ class DB
 
     /**
      * get the stats
-     * @return array stats
+     *
+     * @return int[] stats
      */
     public static function getStats(): array
     {
