@@ -106,6 +106,40 @@ class Collection implements Iterator, Countable, Stringable
     }
 
     /**
+     * add Param to collection
+     *
+     * @param string $field
+     *
+     * @return Param
+     */
+    public function addParam(string $field): Param
+    {
+        $param = new Param($field);
+
+        $this->array[] = &$param;
+        ++$this->position;
+
+        return $param;
+    }
+
+    /**
+     * add Collection to collection
+     *
+     * @param string $operator
+     *
+     * @return Collection
+     */
+    public function addCollection(string $operator = 'AND'): Collection
+    {
+        $Collection = new self($operator);
+
+        $this->array[] = &$Collection;
+        ++$this->position;
+
+        return $Collection;
+    }
+
+    /**
      * @inheritDoc
      *
      * @return int
