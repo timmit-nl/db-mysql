@@ -96,14 +96,14 @@ class DB
      *
      * @var \mysqli
      */
-    protected static $mlink;
+    protected static \mysqli $mlink;
 
     /**
      * Created DBwrite connection
      *
      * @var \mysqli
      */
-    protected static $mlinkWrite;
+    protected static \mysqli $mlinkWrite;
 
     /**
      * The default charset.
@@ -282,11 +282,15 @@ class DB
     {
         self::addToStats(__FUNCTION__);
         if ($writeNode) {
-            $mlink = self::$mlinkWrite;
+            if (isset(self::$mlinkWrite)) {
+                $mlink = self::$mlinkWrite;
+            }
         } else {
-            $mlink = self::$mlink;
+            if (isset(self::$mlink)) {
+                $mlink = self::$mlink;
+            }
         }
-        if (is_null($mlink)) {
+        if (isset($mlink)) {
             return false;
         }
 
@@ -1105,12 +1109,10 @@ class DB
     {
         if (self::$wsrepSupport) {
             try {
-                if (isset(self::$mlink)) {
-                    if ($on) {
-                        mysqli_query(self::$mlink, "SET SESSION wsrep_sync_wait = 1;");
-                    } else {
-                        mysqli_query(self::$mlink, "SET SESSION wsrep_sync_wait = 0;");
-                    }
+                if ($on) {
+                    mysqli_query(self::$mlink, "SET SESSION wsrep_sync_wait = 1;");
+                } else {
+                    mysqli_query(self::$mlink, "SET SESSION wsrep_sync_wait = 0;");
                 }
             } catch (\Exception $ex) {
             }
