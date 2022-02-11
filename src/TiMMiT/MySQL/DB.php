@@ -94,7 +94,7 @@ class DB
     /**
      * Created DB connection
      *
-     * @var \mysqli
+     * @var \mysqli|null
      */
     protected static $mlink;
 
@@ -203,16 +203,25 @@ class DB
         mysqli_report(self::$mysqliReportingExceptionOn);
 
         try {
-            self::$mlink = mysqli_connect(self::$config['host'], self::$config['username'], self::$config['password'], self::$config['database'], (int)self::$config['port']);
+
+            $mlink = mysqli_connect((string)self::$config['host'], (string)self::$config['username'], (string)self::$config['password'], (string)self::$config['database'], (int)self::$config['port']);
+            if ($mlink !== false) {
+                self::$mlink = $mlink;
+            }
             self::$writeActive = false;
             if (!empty(self::$write) && self::$config != self::$write && !empty(self::$write['host'])) {
-                self::$mlinkWrite = mysqli_connect(self::$write['host'], self::$write['username'], self::$write['password'], self::$write['database'], (int)self::$write['port']);
+                $mlink = mysqli_connect((string)self::$write['host'], (string)self::$write['username'], (string)self::$write['password'], (string)self::$write['database'], (int)self::$write['port']);
+                if ($mlink !== false) {
+                    self::$mlinkWrite = $mlink;
+                }
                 self::$writeActive = true;
             }
         } catch (\mysqli_sql_exception $e) {
             if (!empty(self::$fallback) &&  !empty(self::$fallback['host'])) {
-                self::$mlink = mysqli_connect(self::$fallback['host'], self::$fallback['username'], self::$fallback['password'], self::$fallback['database'], (int)self::$fallback['port']);
-
+                $mlink = mysqli_connect((string)self::$fallback['host'], (string)self::$fallback['username'], (string)self::$fallback['password'], (string)self::$fallback['database'], (int)self::$fallback['port']);
+                if ($mlink !== false) {
+                    self::$mlink = $mlink;
+                }
                 self::$fallbackActive = true;
                 self::$writeActive = false;
             } else {
@@ -375,10 +384,10 @@ class DB
      *
      * @return bool
      */
-    public static function updateQuery(string $query, bool $writeNode = true)
+    public static function updateQuery(string $query, bool $writeNode = true): bool
     {
         self::addToStats(__FUNCTION__);
-        return self::query($query, $writeNode);
+        return (bool)self::query($query, $writeNode);
     }
 
     /**
@@ -389,10 +398,10 @@ class DB
      *
      * @return bool
      */
-    public static function deleteQuery(string $query, bool $writeNode = true)
+    public static function deleteQuery(string $query, bool $writeNode = true): bool
     {
         self::addToStats(__FUNCTION__);
-        return self::query($query, $writeNode);
+        return (bool)self::query($query, $writeNode);
     }
 
     /**
@@ -403,10 +412,10 @@ class DB
      *
      * @return bool
      */
-    public static function executeQuery(string $query, bool $writeNode = true)
+    public static function executeQuery(string $query, bool $writeNode = true): bool
     {
         self::addToStats(__FUNCTION__);
-        return self::query($query, $writeNode);
+        return (bool)self::query($query, $writeNode);
     }
 
     /**
@@ -490,7 +499,7 @@ class DB
     {
         self::addToStats(__FUNCTION__);
         $result = self::query($query);
-        if (mysqli_num_rows($result) > 0) {
+        if ($result instanceof \mysqli_result && mysqli_num_rows($result) > 0) {
             return true;
         } else {
             return false;
@@ -510,8 +519,11 @@ class DB
     {
         self::addToStats(__FUNCTION__);
         $primaryKeyFieldResult = self::query("SHOW INDEX FROM " . $table);
-        $primaryKeyFieldRow = mysqli_fetch_array($primaryKeyFieldResult);
-        return self::checkForResult("SELECT " . $field . " FROM " . $table . " WHERE " . $primaryKeyFieldRow["Column_name"] . " = " . $primaryKeyFieldID . " AND " . $field . " IS NULL;");
+        if ($primaryKeyFieldResult instanceof \mysqli_result) {
+            $primaryKeyFieldRow = mysqli_fetch_array($primaryKeyFieldResult);
+            return self::checkForResult("SELECT " . $field . " FROM " . $table . " WHERE " . $primaryKeyFieldRow["Column_name"] . " = " . $primaryKeyFieldID . " AND " . $field . " IS NULL;");
+        }
+        return false;
     }
 
 
@@ -761,7 +773,7 @@ class DB
         }
 
         foreach ($cqueries as $table => $qry) {
-            if (!self::checkTableExist($table)) {
+            if (!self::checkTableExist((string)$table)) {
                 continue;
             }
 
@@ -943,11 +955,10 @@ class DB
      * clean variable from DB against slashes against SQL injection for export csv
      *
      * @param mixed $value
-     * @param string $key
      *
      * @return void
      */
-    public static function cleanFromDB4Csv(&$value, string $key): void
+    public static function cleanFromDB4Csv(&$value): void
     {
         self::addToStats(__FUNCTION__);
         $value = self::cleanFromDB((string)$value);
@@ -959,15 +970,15 @@ class DB
      * @param string $table       table
      * @param string[] $fields      if empty=* else array of fields
      * @param mixed[] $params      params array for where
-     * @param string|bool $file        path to file, false to tempfile
+     * @param string|null $file        path to file, null to tempfile
      * @param bool $return      true return csv else return rows of csv
      * @param string $delimiter   delimiter of csv default ;
      * @param string $enclosure   enclosure of csv default "
      * @param string $escape_char escape_char of csv default \
      *
-     * @return int|string
+     * @return int|string|false
      */
-    public static function export2Csv(string $table, array $fields = array(), array $params = array(), $file = false, bool $return = false, string $delimiter = ';', string $enclosure = '"', string $escape_char = "\\")
+    public static function export2Csv(string $table, array $fields = array(), array $params = array(), ?string $file = null, bool $return = false, string $delimiter = ';', string $enclosure = '"', string $escape_char = "\\")
     {
         self::addToStats(__FUNCTION__);
         $fieldsTxt = '*';
@@ -984,14 +995,19 @@ class DB
         $total = $totalResult[0]['total'];
         $chunk = 1000;
 
-        if ($file == false) {
+        if (is_null($file)) {
             $filename = tempnam(sys_get_temp_dir(), 'CSV');
             $return = true;
         } else {
             $filename = $file;
         }
+        if ($filename === false) {
+            return false;
+        }
         $fp = fopen($filename, 'w');
-
+        if ($fp === false) {
+            return false;
+        }
         $a = 0;
 
         while ($a < $total) {
@@ -1001,12 +1017,16 @@ class DB
 
             if ($result instanceof \mysqli_result) {
                 while ($row = $result->fetch_assoc()) {
-                    if ($a == 0) {
-                        fputcsv($fp, array_keys($row), $delimiter, $enclosure, $escape_char);
+                    if (!is_null($row)) {
+                        if ($a == 0) {
+                            fputcsv($fp, array_keys($row), $delimiter, $enclosure, $escape_char);
+                        }
+                        foreach ($row as $k => $v) {
+                            self::cleanFromDB4Csv($v);
+                        }
+                        fputcsv($fp, $row, $delimiter, $enclosure, $escape_char);
+                        $a++;
                     }
-                    array_walk($row, array('self', 'cleanFromDB4Csv'));
-                    fputcsv($fp, $row, $delimiter, $enclosure, $escape_char);
-                    $a++;
                 }
                 $result->free();
             }

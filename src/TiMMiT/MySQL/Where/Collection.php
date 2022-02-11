@@ -154,7 +154,7 @@ class Collection implements Iterator, Countable, Stringable
     /**
      * @inheritDoc
      *
-     * @return Param
+     * @return Param|Collection
      */
     public function current(): Param
     {
