@@ -953,19 +953,6 @@ class DB
     }
 
     /**
-     * clean variable from DB against slashes against SQL injection for export csv
-     *
-     * @param mixed $value
-     *
-     * @return void
-     */
-    public static function cleanFromDB4Csv(&$value): void
-    {
-        self::addToStats(__FUNCTION__);
-        $value = self::cleanFromDB((string)$value);
-    }
-
-    /**
      * Export function 2 csv
      *
      * @param string $table       table
@@ -1022,7 +1009,7 @@ class DB
                         fputcsv($fp, array_keys($row), $delimiter, $enclosure, $escape_char);
                     }
                     foreach ($row as $k => $v) {
-                        self::cleanFromDB4Csv($v);
+                        $row[$k] = self::cleanFromDB($v);
                     }
                     fputcsv($fp, $row, $delimiter, $enclosure, $escape_char);
                     $a++;
