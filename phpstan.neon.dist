@@ -9,7 +9,7 @@ parameters:
 		- php
 	paths:
 		- ./src
-	excludes_analyse:
+	excludePaths:
 	dynamicConstantNames:
 		- FORCESSL
 		- ENV
@@ -19,3 +19,5 @@ parameters:
 		- CLI_DAEMON_ID
 		- FROM_EMAIL
 	treatPhpDocTypesAsCertain: false
+includes:
+	- vendor/phpstan/phpstan-deprecation-rules/rules.neon
