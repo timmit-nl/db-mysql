@@ -203,7 +203,6 @@ class DB
         mysqli_report(self::$mysqliReportingExceptionOn);
 
         try {
-
             $mlink = mysqli_connect((string)self::$config['host'], (string)self::$config['username'], (string)self::$config['password'], (string)self::$config['database'], (int)self::$config['port']);
             if ($mlink !== false) {
                 self::$mlink = $mlink;
@@ -521,7 +520,7 @@ class DB
         $primaryKeyFieldResult = self::query("SHOW INDEX FROM " . $table);
         if ($primaryKeyFieldResult instanceof \mysqli_result) {
             $primaryKeyFieldRow = mysqli_fetch_array($primaryKeyFieldResult);
-            if (isset($primaryKeyFieldRow['Column_name'])) {
+            if ($primaryKeyFieldRow !== false && isset($primaryKeyFieldRow['Column_name'])) {
                 return self::checkForResult("SELECT " . $field . " FROM " . $table . " WHERE " . $primaryKeyFieldRow['Column_name'] . " = " . $primaryKeyFieldID . " AND " . $field . " IS NULL;");
             }
         }
