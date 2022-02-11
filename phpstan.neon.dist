@@ -1,5 +1,5 @@
 parameters:
-	level: 5
+	level: 8
 	parallel:
 		maximumNumberOfProcesses: 4
 		minimumNumberOfJobsPerProcess: 2
@@ -9,7 +9,7 @@ parameters:
 		- php
 	paths:
 		- ./src
-	excludes_analyse:
+	excludePaths:
 	dynamicConstantNames:
 		- FORCESSL
 		- ENV
@@ -19,3 +19,7 @@ parameters:
 		- CLI_DAEMON_ID
 		- FROM_EMAIL
 	treatPhpDocTypesAsCertain: false
+	ignoreErrors:
+		- '#Method TiMMiT\\MySQL\\DB::query\(\) return type has no value type specified in iterable type mysqli_result.#'
+includes:
+	- vendor/phpstan/phpstan-deprecation-rules/rules.neon
