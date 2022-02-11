@@ -94,14 +94,14 @@ class DB
     /**
      * Created DB connection
      *
-     * @var \mysqli|null
+     * @var \mysqli
      */
     protected static $mlink;
 
     /**
      * Created DBwrite connection
      *
-     * @var \mysqli|null
+     * @var \mysqli
      */
     protected static $mlinkWrite;
 
@@ -1105,10 +1105,12 @@ class DB
     {
         if (self::$wsrepSupport) {
             try {
-                if ($on) {
-                    mysqli_query(self::$mlink, "SET SESSION wsrep_sync_wait = 1;");
-                } else {
-                    mysqli_query(self::$mlink, "SET SESSION wsrep_sync_wait = 0;");
+                if (isset(self::$mlink)) {
+                    if ($on) {
+                        mysqli_query(self::$mlink, "SET SESSION wsrep_sync_wait = 1;");
+                    } else {
+                        mysqli_query(self::$mlink, "SET SESSION wsrep_sync_wait = 0;");
+                    }
                 }
             } catch (\Exception $ex) {
             }
