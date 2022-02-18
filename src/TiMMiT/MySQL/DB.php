@@ -293,7 +293,7 @@ class DB
             }
         }
 
-        if (!isset($mlink) || is_null($mlink) || !is_object($mlink) || !isset($mlink->host_info)) {
+        if (!isset($mlink) || !is_object($mlink) || !isset($mlink->host_info)) {
             return false;
         }
 
