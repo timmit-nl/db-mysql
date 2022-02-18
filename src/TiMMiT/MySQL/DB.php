@@ -231,6 +231,8 @@ class DB
     {
         try {
             self::addToStats(__FUNCTION__);
+
+            mysqli_report(self::$mysqliReportingExceptionOn);
             if (self::$writeActive && self::ping(true)) {
                 mysqli_close(self::$mlinkWrite);
             }
@@ -266,22 +268,29 @@ class DB
         } else {
             $mlink = self::$mlink;
         }
-        if (is_null($mlink)) {
+        if (is_null($mlink) || !is_object($mlink) || !isset($mlink->host_info)) {
             return false;
         }
+
+        mysqli_report(self::$mysqliReportingExceptionOn);
 
         $returnValue = true;
         try {
             $result = mysqli_query($mlink, 'SELECT 1;');
             if (!$result) {
                 $errorno = mysqli_errno($mlink);
-                if (!empty($errorno)) {
+                if ($errorno !== 0) {
                     $returnValue = false;
                 }
             }
+        } catch (\mysqli_sql_exception $e) {
+            $returnValue =  false;
+        } catch (\ErrorException $e) {
+            $returnValue =  false;
         } catch (\Throwable $e) {
             $returnValue =  false;
         }
+        mysqli_report(self::$mysqliReportingExceptionOff);
         return $returnValue;
     }
 
