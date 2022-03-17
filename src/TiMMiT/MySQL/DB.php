@@ -33,7 +33,7 @@ class DB
      *
      * @var array
      */
-    protected static $fallback = array();
+    protected static array $fallback = array();
 
     /**
      * The backup active bool.
@@ -47,14 +47,14 @@ class DB
      *
      * @var array
      */
-    protected static $write = array();
+    protected static array $write = array();
 
     /**
      * The write active bool.
      *
      * @var bool
      */
-    public static $writeActive = false;
+    public static bool $writeActive = false;
 
     /**
      * Max tries before failure by deadlock
@@ -66,9 +66,9 @@ class DB
     /**
      * Sleep multiplier with a deadlock
      *
-     * @var int
+     * @var float
      */
-    public static int $sleep_deadlock_multiplier = 1;
+    public static float $sleep_deadlock_multiplier = 1;
 
     /**
      * Max tries before failure by gone away
