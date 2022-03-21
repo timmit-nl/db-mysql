@@ -33,7 +33,7 @@ class DB
      *
      * @var string[]|int[]
      */
-    protected static $fallback = array();
+    protected static array $fallback = array();
 
     /**
      * The backup active bool.
@@ -47,14 +47,14 @@ class DB
      *
      * @var string[]|int[]
      */
-    protected static $write = array();
+    protected static array $write = array();
 
     /**
      * The write active bool.
      *
      * @var bool
      */
-    public static $writeActive = false;
+    public static bool $writeActive = false;
 
     /**
      * Max tries before failure by deadlock
