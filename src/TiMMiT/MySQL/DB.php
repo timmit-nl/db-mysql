@@ -66,9 +66,9 @@ class DB
     /**
      * Sleep multiplier with a deadlock
      *
-     * @var int
+     * @var float
      */
-    public static int $sleep_deadlock_multiplier = 1;
+    public static float $sleep_deadlock_multiplier = 1;
 
     /**
      * Max tries before failure by gone away
