@@ -20,7 +20,6 @@ parameters:
 		- FROM_EMAIL
 	treatPhpDocTypesAsCertain: false
 	ignoreErrors:
-		- '#Method TiMMiT\\MySQL\\DB::query\(\) return type has no value type specified in iterable type mysqli_result.#'
 		- '#Property mysqli::\$host_info \(string\) in isset\(\) is not nullable.#'
 includes:
 	- vendor/phpstan/phpstan-deprecation-rules/rules.neon
