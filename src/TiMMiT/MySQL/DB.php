@@ -1023,7 +1023,10 @@ class DB
                         fputcsv($fp, array_keys($row), $delimiter, $enclosure, $escape_char);
                     }
                     foreach ($row as $k => $v) {
-                        $row[$k] = self::cleanFromDB($v);
+                        if (is_string($v)) {
+                            $v = self::cleanFromDB($v);
+                        }
+                        $row[$k] = $v;
                     }
                     fputcsv($fp, $row, $delimiter, $enclosure, $escape_char);
                     $a++;
