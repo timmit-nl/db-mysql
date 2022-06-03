@@ -19,7 +19,8 @@
         "phpstan/phpstan": "^1.1",
         "phpstan/phpstan-strict-rules": "^1.0",
         "phpstan/phpstan-deprecation-rules":"^1.0",
-        "sweetstackdigital/php-docblock-checker": "~1.10.6"
+        "sweetstackdigital/php-docblock-checker": "~1.10.6",
+        "symfony/console": "~6.0.9"
     },
     "autoload": {
         "psr-4": {
