@@ -297,8 +297,6 @@ class DB
             return false;
         }
 
-        mysqli_report(self::$mysqliReportingExceptionOn);
-
         $returnValue = true;
         try {
             $result = mysqli_query($mlink, 'SELECT 1;');
@@ -315,7 +313,6 @@ class DB
         } catch (\Throwable $e) {
             $returnValue =  false;
         }
-        mysqli_report(self::$mysqliReportingExceptionOff);
         return $returnValue;
     }
 
@@ -352,7 +349,7 @@ class DB
             }
         } catch (\Exception $e) {
             $errorno = mysqli_errno($mlink);
-            $error = mysqli_error(self::$mlink);
+            $error = mysqli_error($mlink);
             switch ($errorno) {
                 case 1213:
                     if ($count < self::$max_deadlock_count) {
