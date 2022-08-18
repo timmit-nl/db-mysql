@@ -499,26 +499,6 @@ class DB
     }
 
     /**
-     * Get all columns of table
-     *
-     * @param string $table
-     * @param bool $full
-     *
-     * @return mixed[]
-     */
-    public static function getColumnsOfTable(string $table, bool $full = false): array
-    {
-        self::addToStats(__FUNCTION__);
-
-        $prefix = "";
-        if ($full) {
-            $prefix = "FULL";
-        }
-
-        return self::selectQuery("SHOW " . $prefix . " COLUMNS FROM `" . $table . "`;");
-    }
-
-    /**
      * Check if query gives result
      *
      * @param string $query
@@ -556,6 +536,47 @@ class DB
             }
         }
         return false;
+    }
+
+    /**
+     * Get all columns of table
+     *
+     * @param string $table
+     * @param bool $full
+     *
+     * @return mixed[]
+     */
+    public static function getColumnsOfTable(string $table, bool $full = false): array
+    {
+        self::addToStats(__FUNCTION__);
+
+        $prefix = "";
+        if ($full) {
+            $prefix = "FULL";
+        }
+
+        return self::selectQuery("SHOW " . $prefix . " COLUMNS FROM `" . $table . "`;");
+    }
+
+    /**
+     * Get the Collation of a column in a table
+     *
+     * @param string $table
+     * @param string $column
+     *
+     * @return null|string
+     */
+    public static function getCollationOfTableColumn(string $table, string $column): ?string
+    {
+        self::addToStats(__FUNCTION__);
+
+        $columns = self::getColumnsOfTable($table, true);
+        foreach ($columns as $columnItem) {
+            if ($columnItem['Field'] == $column) {
+                return $columnItem['Collation'] ?? null;
+            }
+        }
+        return null;
     }
 
 
