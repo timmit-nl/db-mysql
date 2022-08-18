@@ -502,13 +502,20 @@ class DB
      * Get all columns of table
      *
      * @param string $table
+     * @param bool $full
      *
      * @return mixed[]
      */
-    public static function getColumnsOfTable(string $table): array
+    public static function getColumnsOfTable(string $table, bool $full = false): array
     {
         self::addToStats(__FUNCTION__);
-        return self::selectQuery("SHOW FULL COLUMNS FROM `" . $table . "`;");
+
+        $prefix = "";
+        if ($full) {
+            $prefix = "FULL";
+        }
+
+        return self::selectQuery("SHOW " . $prefix . " COLUMNS FROM `" . $table . "`;");
     }
 
     /**
