@@ -831,7 +831,7 @@ class DB
             }
 
             // Fetch the table column structure from the database
-            $tablefields = self::selectQuery("DESCRIBE `{$table}`;");
+            $tablefields = self::getColumnsOfTable($table);
 
             if (!$tablefields) {
                 continue;
