@@ -499,6 +499,19 @@ class DB
     }
 
     /**
+     * Get all columns of table
+     *
+     * @param string $table
+     *
+     * @return mixed[]
+     */
+    public static function getColumnsOfTable(string $table): array
+    {
+        self::addToStats(__FUNCTION__);
+        return self::selectQuery("SHOW FULL COLUMNS FROM `" . $table . "`;");
+    }
+
+    /**
      * Check if query gives result
      *
      * @param string $query
