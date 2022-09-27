@@ -19,7 +19,5 @@ parameters:
 		- CLI_DAEMON_ID
 		- FROM_EMAIL
 	treatPhpDocTypesAsCertain: false
-	ignoreErrors:
-		- '#Property mysqli::\$host_info \(string\) in isset\(\) is not nullable.#'
 includes:
 	- vendor/phpstan/phpstan-deprecation-rules/rules.neon
