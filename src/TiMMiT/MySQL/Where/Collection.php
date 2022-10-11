@@ -41,6 +41,13 @@ class Collection implements Iterator, Countable, Stringable
     private int $position = 0;
 
     /**
+     * Toon alle items
+     *
+     * @var bool
+     */
+    private bool $ifEmptyThenShowAll = false;
+
+    /**
      * contains operator of Collection (AND/OR/NOT)
      *
      * @var string
@@ -122,6 +129,18 @@ class Collection implements Iterator, Countable, Stringable
         ++$this->position;
 
         return $param;
+    }
+
+    /**
+     * ifEmptyThenShowAll
+     *
+     * @param bool $ifEmptyThenShowAll
+     *
+     * @return void
+     */
+    public function ifEmptyThenShowAll(bool $ifEmptyThenShowAll = false): void
+    {
+        $this->ifEmptyThenShowAll = $ifEmptyThenShowAll;
     }
 
     /**
@@ -249,6 +268,10 @@ class Collection implements Iterator, Countable, Stringable
      */
     public function __toString(): string
     {
-        return "(" . implode(" " . $this->operator . " ", $this->array) . ")";
+        if (($this->ifEmptyThenShowAll == true) && (count($this->array) === 0)) {
+            return "(1=1)";
+        } else {
+            return "(" . implode(" " . $this->operator . " ", $this->array) . ")";
+        }
     }
 }
