@@ -439,6 +439,20 @@ class DB
      */
     public static function selectQuery(string $query, string $keyField = '', bool $writeNode = false): array
     {
+        return self::selectQueryToStrings($query, $keyField, $writeNode);
+    }
+
+    /**
+     * Select Query function
+     *
+     * @param string $query
+     * @param string $keyField
+     * @param bool $writeNode
+     *
+     * @return mixed[]
+     */
+    public static function selectQueryToStrings(string $query, string $keyField = '', bool $writeNode = false): array
+    {
         self::addToStats(__FUNCTION__);
         $result = self::query($query, $writeNode);
         $return = array();
@@ -447,6 +461,74 @@ class DB
             while ($row = $result->fetch_assoc()) {
                 if (!empty($keyField) && isset($row[$keyField])) {
                     $return[$row[$keyField]] = $row;
+                } else {
+                    $return[] = $row;
+                }
+            }
+            $result->free();
+        }
+        return $return;
+    }
+
+    /**
+     * Select Query function
+     *
+     * @param string $query
+     * @param string $keyField
+     * @param bool $writeNode
+     *
+     * @return mixed[]
+     */
+    public static function selectQueryToCorrectType(string $query, string $keyField = '', bool $writeNode = false): array
+    {
+        self::addToStats(__FUNCTION__);
+        $return = array();
+        $result = self::query($query, $writeNode);
+        if ($result instanceof \mysqli_result) {
+            $changeFields = array();
+            $fields = $result->fetch_fields();
+            foreach ($fields as $field) {
+                switch ($field->type) {
+                    case MYSQLI_TYPE_TINY:
+                    case MYSQLI_TYPE_SHORT:
+                    case MYSQLI_TYPE_LONG:
+                    case MYSQLI_TYPE_INT24:
+                        $changeFields[$field->name] = 'int';
+                        break;
+                    case MYSQLI_TYPE_NEWDECIMAL:
+                    case MYSQLI_TYPE_DECIMAL:
+                    case MYSQLI_TYPE_FLOAT:
+                        $changeFields[$field->name] = 'float';
+                        break;
+                    case MYSQLI_TYPE_DATETIME:
+                    case MYSQLI_TYPE_TIMESTAMP:
+                        $changeFields[$field->name] = 'datetime';
+                        break;
+                    default:
+                        $changeFields[$field->name] = 'string'; //(string is default so do nothing)
+                        break;
+                }
+            }
+            while ($row = $result->fetch_assoc()) {
+                foreach ($changeFields as $field => $type) {
+                    if (isset($changeFields[$field]) && !is_null($row[$field])) {
+                        switch ($changeFields[$field]) {
+                            case 'int':
+                            case 'float':
+                                settype($row[$field], $type);
+                                break;
+                            case 'datetime':
+                                if ($row[$field] == '0000-00-00 00:00:00') {
+                                    $row[$field] = null;
+                                } else {
+                                    $row[$field] = Result\DateTime::createFromFormat('Y-m-d H:i:s', (string)$row[$field]);
+                                }
+                                break;
+                        }
+                    }
+                }
+                if (!empty($keyField) && isset($row[$keyField])) {
+                    $return[(string)$row[$keyField]] = $row;
                 } else {
                     $return[] = $row;
                 }
