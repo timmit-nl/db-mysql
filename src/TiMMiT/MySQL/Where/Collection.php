@@ -41,6 +41,13 @@ class Collection implements Iterator, Countable, Stringable
     private int $position = 0;
 
     /**
+     * If empty collection and this is true, then show all instead of nothing
+     *
+     * @var bool
+     */
+    private bool $ifEmptyThenShowAll = false;
+
+    /**
      * contains operator of Collection (AND/OR/NOT)
      *
      * @var string
@@ -88,6 +95,19 @@ class Collection implements Iterator, Countable, Stringable
     }
 
     /**
+     * ifEmptyThenShowAll
+     *
+     * @param bool $ifEmptyThenShowAll
+     *
+     * @return Collection
+     */
+    public function setIfEmptyThenShowAll(bool $ifEmptyThenShowAll = false): Collection
+    {
+        $this->ifEmptyThenShowAll = $ifEmptyThenShowAll;
+        return $this;
+    }
+
+    /**
      * add item to collection
      *
      * @param object $item
@@ -119,7 +139,7 @@ class Collection implements Iterator, Countable, Stringable
         $param = new Param($field);
 
         $this->array[] = &$param;
-        ++$this->position;
+        $this->next();
 
         return $param;
     }
@@ -136,7 +156,7 @@ class Collection implements Iterator, Countable, Stringable
         $Collection = new self($operator);
 
         $this->array[] = &$Collection;
-        ++$this->position;
+        $this->next();
 
         return $Collection;
     }
@@ -249,6 +269,10 @@ class Collection implements Iterator, Countable, Stringable
      */
     public function __toString(): string
     {
-        return "(" . implode(" " . $this->operator . " ", $this->array) . ")";
+        if (($this->ifEmptyThenShowAll == true) && ($this->count() === 0)) {
+            return "(1=1)";
+        } else {
+            return "(" . implode(" " . $this->operator . " ", $this->array) . ")";
+        }
     }
 }
