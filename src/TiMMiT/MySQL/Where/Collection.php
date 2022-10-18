@@ -41,7 +41,7 @@ class Collection implements Iterator, Countable, Stringable
     private int $position = 0;
 
     /**
-     * Toon alle items
+     * If empty collection and this is true, then show all instead of nothing
      *
      * @var bool
      */
@@ -95,6 +95,19 @@ class Collection implements Iterator, Countable, Stringable
     }
 
     /**
+     * ifEmptyThenShowAll
+     *
+     * @param bool $ifEmptyThenShowAll
+     *
+     * @return Collection
+     */
+    public function setIfEmptyThenShowAll(bool $ifEmptyThenShowAll = false): Collection
+    {
+        $this->ifEmptyThenShowAll = $ifEmptyThenShowAll;
+        return $this;
+    }
+
+    /**
      * add item to collection
      *
      * @param object $item
@@ -126,21 +139,9 @@ class Collection implements Iterator, Countable, Stringable
         $param = new Param($field);
 
         $this->array[] = &$param;
-        ++$this->position;
+        $this->next();
 
         return $param;
-    }
-
-    /**
-     * ifEmptyThenShowAll
-     *
-     * @param bool $ifEmptyThenShowAll
-     *
-     * @return void
-     */
-    public function ifEmptyThenShowAll(bool $ifEmptyThenShowAll = false): void
-    {
-        $this->ifEmptyThenShowAll = $ifEmptyThenShowAll;
     }
 
     /**
@@ -155,7 +156,7 @@ class Collection implements Iterator, Countable, Stringable
         $Collection = new self($operator);
 
         $this->array[] = &$Collection;
-        ++$this->position;
+        $this->next();
 
         return $Collection;
     }
@@ -268,7 +269,7 @@ class Collection implements Iterator, Countable, Stringable
      */
     public function __toString(): string
     {
-        if (($this->ifEmptyThenShowAll == true) && (count($this->array) === 0)) {
+        if (($this->ifEmptyThenShowAll == true) && ($this->count() === 0)) {
             return "(1=1)";
         } else {
             return "(" . implode(" " . $this->operator . " ", $this->array) . ")";
