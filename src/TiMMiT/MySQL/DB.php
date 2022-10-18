@@ -1082,16 +1082,23 @@ class DB
     /**
      * start a transaction
      *
+     * @param bool $readOnly
      * @param bool $writeNode
      *
      * @return void
      */
-    public static function startTransaction(bool $writeNode = true): void
+    public static function startTransaction(bool $readOnly = false, bool $writeNode = true): void
     {
-        self::executeQuery("SET autocommit=0;", $writeNode);
-        self::executeQuery("SET unique_checks=0;", $writeNode);
-        self::executeQuery("SET foreign_key_checks=0", $writeNode);
-        self::executeQuery("START TRANSACTION;", $writeNode);
+
+        if (!$readOnly) {
+            self::executeQuery("SET autocommit=0;", $writeNode);
+            self::executeQuery("SET unique_checks=0;", $writeNode);
+            self::executeQuery("SET foreign_key_checks=0", $writeNode);
+            $suffix = "";
+        } else {
+            $suffix = "READ ONLY";
+        }
+        self::executeQuery("START TRANSACTION " . $suffix . ";", $writeNode);
     }
 
     /**
@@ -1122,20 +1129,23 @@ class DB
      * stop a transaction
      *
      * @param bool $commit
+     * @param bool $readOnly
      * @param bool $writeNode
      *
      * @return void
      */
-    public static function endTransaction(bool $commit, bool $writeNode = true): void
+    public static function endTransaction(bool $commit, bool $readOnly = false, bool $writeNode = true): void
     {
         if ($commit) {
             self::commitTransaction($writeNode);
         } else {
             self::rollbackTransaction($writeNode);
         }
-        self::executeQuery("SET autocommit=1;", $writeNode);
-        self::executeQuery("SET unique_checks=1;", $writeNode);
-        self::executeQuery("SET foreign_key_checks=1;", $writeNode);
+        if (!$readOnly) {
+            self::executeQuery("SET autocommit=1;", $writeNode);
+            self::executeQuery("SET unique_checks=1;", $writeNode);
+            self::executeQuery("SET foreign_key_checks=1;", $writeNode);
+        }
     }
 
     /**
