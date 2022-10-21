@@ -521,7 +521,7 @@ class DB
                                 if ($row[$field] == '0000-00-00 00:00:00') {
                                     $row[$field] = null;
                                 } else {
-                                    $row[$field] = Result\DateTime::createFromFormat('Y-m-d H:i:s', (string)$row[$field]);
+                                    $row[$field] = Result\DateTime::createFromFormatNull('Y-m-d H:i:s', (string)$row[$field]);
                                 }
                                 break;
                         }
@@ -790,6 +790,7 @@ class DB
                             $par['operator'] = '';
                         }
                         if (is_array($par['param']) && ($par['operator'] != 'IN' || $par['operator'] != 'NOT IN')) {
+                            /** @phpstan-ignore-next-line */
                             $where .= '' . self::getWhereFromParam($par['param'], $table) . ' ' . self::clean4DB($divider_operator) . " ";
                         } else {
                             if (!isset($par['value'])) {
@@ -1091,7 +1092,7 @@ class DB
      *
      * @param string $table       table
      * @param string[] $fields      if empty=* else array of fields
-     * @param mixed[] $params      params array for where
+     * @param Collection $params      params array for where
      * @param string|null $file        path to file, null to tempfile
      * @param bool $return      true return csv else return rows of csv
      * @param string $delimiter   delimiter of csv default ;
@@ -1100,7 +1101,7 @@ class DB
      *
      * @return int|string|false
      */
-    public static function export2Csv(string $table, array $fields = array(), array $params = array(), ?string $file = null, bool $return = false, string $delimiter = ';', string $enclosure = '"', string $escape_char = "\\")
+    public static function export2Csv(string $table, array $fields = array(), ?Collection $Collection = null, ?string $file = null, bool $return = false, string $delimiter = ';', string $enclosure = '"', string $escape_char = "\\")
     {
         self::addToStats(__FUNCTION__);
         $fieldsTxt = '*';
@@ -1111,9 +1112,12 @@ class DB
             }
             $fieldsTxt = implode(", ", $fieldsArray);
         }
-        $query = "SELECT " . $fieldsTxt . " FROM " . self::clean4DB($table, true) . " WHERE " . self::getWhereFromParam($params);
 
-        $totalResult = DB::selectQuery("SELECT count(*) as `total` FROM " . self::clean4DB($table, true) . " WHERE " . self::getWhereFromParam($params) . ";");
+        $where = self::getWhereFromCollection($Collection);
+
+        $query = "SELECT " . $fieldsTxt . " FROM " . self::clean4DB($table, true) . " WHERE " . $where;
+
+        $totalResult = DB::selectQuery("SELECT count(*) as `total` FROM " . self::clean4DB($table, true) . " WHERE " . $where . ";");
         $total = $totalResult[0]['total'];
         $chunk = 1000;
 
