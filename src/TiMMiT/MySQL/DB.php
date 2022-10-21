@@ -767,17 +767,17 @@ class DB
     /**
      * Make where statement from parameters
      *
-     * @param mixed[]|false $param paramater or parameters as assoc array
+     * @param mixed[]|null $param paramater or parameters as assoc array
      * @param string $table
      *
      * @return string
+     *
+     * @deprecated 10.0 Use DB\Where\Collection instead of array of params and getWhereFromCollection instead of getWhereFromParam
      */
-    public static function getWhereFromParam($param = false, string $table = ''): string
+    public static function getWhereFromParam(?array $param = null, string $table = ''): string
     {
         self::addToStats(__FUNCTION__);
-        if (is_object($param) && ($param instanceof Collection)) {
-            $where = self::getWhereFromCollection($param);
-        } elseif (is_array($param) && !empty($param)) {
+        if (is_array($param) && !empty($param)) {
             $where = "(";
             $divider_operator = 'AND';
             foreach ($param as $par) {
