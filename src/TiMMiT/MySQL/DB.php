@@ -511,7 +511,7 @@ class DB
             }
             while ($row = $result->fetch_assoc()) {
                 foreach ($changeFields as $field => $type) {
-                    if (isset($changeFields[$field]) && !is_null($row[$field])) {
+                    if (!is_null($row[$field])) {
                         switch ($changeFields[$field]) {
                             case 'int':
                             case 'float':
@@ -790,7 +790,6 @@ class DB
                             $par['operator'] = '';
                         }
                         if (is_array($par['param']) && ($par['operator'] != 'IN' || $par['operator'] != 'NOT IN')) {
-                            /** @phpstan-ignore-next-line */
                             $where .= '' . self::getWhereFromParam($par['param'], $table) . ' ' . self::clean4DB($divider_operator) . " ";
                         } else {
                             if (!isset($par['value'])) {
@@ -1092,7 +1091,7 @@ class DB
      *
      * @param string $table       table
      * @param string[] $fields      if empty=* else array of fields
-     * @param Collection $params      params array for where
+     * @param null|Collection $Collection      params array for where
      * @param string|null $file        path to file, null to tempfile
      * @param bool $return      true return csv else return rows of csv
      * @param string $delimiter   delimiter of csv default ;
@@ -1113,7 +1112,11 @@ class DB
             $fieldsTxt = implode(", ", $fieldsArray);
         }
 
-        $where = self::getWhereFromCollection($Collection);
+        if (is_null($Collection)) {
+            $where = "(1=1)";
+        } else {
+            $where = self::getWhereFromCollection($Collection);
+        }
 
         $query = "SELECT " . $fieldsTxt . " FROM " . self::clean4DB($table, true) . " WHERE " . $where;
 
