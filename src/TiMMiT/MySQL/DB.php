@@ -511,7 +511,7 @@ class DB
             }
             while ($row = $result->fetch_assoc()) {
                 foreach ($changeFields as $field => $type) {
-                    if (isset($changeFields[$field]) && !is_null($row[$field])) {
+                    if (!is_null($row[$field])) {
                         switch ($changeFields[$field]) {
                             case 'int':
                             case 'float':
@@ -521,7 +521,7 @@ class DB
                                 if ($row[$field] == '0000-00-00 00:00:00') {
                                     $row[$field] = null;
                                 } else {
-                                    $row[$field] = Result\DateTime::createFromFormat('Y-m-d H:i:s', (string)$row[$field]);
+                                    $row[$field] = Result\DateTime::createFromFormatNull('Y-m-d H:i:s', (string)$row[$field]);
                                 }
                                 break;
                         }
@@ -767,17 +767,17 @@ class DB
     /**
      * Make where statement from parameters
      *
-     * @param mixed[]|false $param paramater or parameters as assoc array
+     * @param mixed[]|null $param paramater or parameters as assoc array
      * @param string $table
      *
      * @return string
+     *
+     * @deprecated 10.0 Use DB\Where\Collection instead of array of params and getWhereFromCollection instead of getWhereFromParam
      */
-    public static function getWhereFromParam($param = false, string $table = ''): string
+    public static function getWhereFromParam(?array $param = null, string $table = ''): string
     {
         self::addToStats(__FUNCTION__);
-        if (is_object($param) && ($param instanceof Collection)) {
-            $where = self::getWhereFromCollection($param);
-        } elseif (is_array($param) && !empty($param)) {
+        if (is_array($param) && !empty($param)) {
             $where = "(";
             $divider_operator = 'AND';
             foreach ($param as $par) {
@@ -1091,7 +1091,7 @@ class DB
      *
      * @param string $table       table
      * @param string[] $fields      if empty=* else array of fields
-     * @param mixed[] $params      params array for where
+     * @param null|Collection $Collection  params array for where
      * @param string|null $file        path to file, null to tempfile
      * @param bool $return      true return csv else return rows of csv
      * @param string $delimiter   delimiter of csv default ;
@@ -1100,7 +1100,7 @@ class DB
      *
      * @return int|string|false
      */
-    public static function export2Csv(string $table, array $fields = array(), array $params = array(), ?string $file = null, bool $return = false, string $delimiter = ';', string $enclosure = '"', string $escape_char = "\\")
+    public static function export2Csv(string $table, array $fields = array(), ?Collection $Collection = null, ?string $file = null, bool $return = false, string $delimiter = ';', string $enclosure = '"', string $escape_char = "\\")
     {
         self::addToStats(__FUNCTION__);
         $fieldsTxt = '*';
@@ -1111,9 +1111,16 @@ class DB
             }
             $fieldsTxt = implode(", ", $fieldsArray);
         }
-        $query = "SELECT " . $fieldsTxt . " FROM " . self::clean4DB($table, true) . " WHERE " . self::getWhereFromParam($params);
 
-        $totalResult = DB::selectQuery("SELECT count(*) as `total` FROM " . self::clean4DB($table, true) . " WHERE " . self::getWhereFromParam($params) . ";");
+        if (is_null($Collection)) {
+            $where = "(1=1)";
+        } else {
+            $where = self::getWhereFromCollection($Collection);
+        }
+
+        $query = "SELECT " . $fieldsTxt . " FROM " . self::clean4DB($table, true) . " WHERE " . $where;
+
+        $totalResult = DB::selectQuery("SELECT count(*) as `total` FROM " . self::clean4DB($table, true) . " WHERE " . $where . ";");
         $total = $totalResult[0]['total'];
         $chunk = 1000;
 
