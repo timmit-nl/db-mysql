@@ -1168,7 +1168,7 @@ class DB
      * @param string[] $fields      if empty=* else array of fields
      * @param null|Collection $Collection  params array for where
      * @param string $file        path to file
-     * @param string[] $orderBy     if empty= no sorting
+     * @param mixed[] $orderBy     if empty= no sorting
      * @param int $chunk       default 1000
      * @param string $delimiter   delimiter of csv default ;
      * @param string $enclosure   enclosure of csv default "
@@ -1244,13 +1244,11 @@ class DB
         }
         fclose($fp);
 
-        $result = [
+        return [
             'file' => $file,
             'totalRows' => $total,
             'exportedRows' => $a,
         ];
-
-        return $a;
     }
 
     /**
