@@ -439,6 +439,20 @@ class DB
      */
     public static function selectQuery(string $query, string $keyField = '', bool $writeNode = false): array
     {
+        return self::selectQueryToStrings($query, $keyField, $writeNode);
+    }
+
+    /**
+     * Select Query function
+     *
+     * @param string $query
+     * @param string $keyField
+     * @param bool $writeNode
+     *
+     * @return mixed[]
+     */
+    public static function selectQueryToStrings(string $query, string $keyField = '', bool $writeNode = false): array
+    {
         self::addToStats(__FUNCTION__);
         $result = self::query($query, $writeNode);
         $return = array();
@@ -447,6 +461,74 @@ class DB
             while ($row = $result->fetch_assoc()) {
                 if (!empty($keyField) && isset($row[$keyField])) {
                     $return[$row[$keyField]] = $row;
+                } else {
+                    $return[] = $row;
+                }
+            }
+            $result->free();
+        }
+        return $return;
+    }
+
+    /**
+     * Select Query function
+     *
+     * @param string $query
+     * @param string $keyField
+     * @param bool $writeNode
+     *
+     * @return mixed[]
+     */
+    public static function selectQueryToCorrectType(string $query, string $keyField = '', bool $writeNode = false): array
+    {
+        self::addToStats(__FUNCTION__);
+        $return = array();
+        $result = self::query($query, $writeNode);
+        if ($result instanceof \mysqli_result) {
+            $changeFields = array();
+            $fields = $result->fetch_fields();
+            foreach ($fields as $field) {
+                switch ($field->type) {
+                    case MYSQLI_TYPE_TINY:
+                    case MYSQLI_TYPE_SHORT:
+                    case MYSQLI_TYPE_LONG:
+                    case MYSQLI_TYPE_INT24:
+                        $changeFields[$field->name] = 'int';
+                        break;
+                    case MYSQLI_TYPE_NEWDECIMAL:
+                    case MYSQLI_TYPE_DECIMAL:
+                    case MYSQLI_TYPE_FLOAT:
+                        $changeFields[$field->name] = 'float';
+                        break;
+                    case MYSQLI_TYPE_DATETIME:
+                    case MYSQLI_TYPE_TIMESTAMP:
+                        $changeFields[$field->name] = 'datetime';
+                        break;
+                    default:
+                        $changeFields[$field->name] = 'string'; //(string is default so do nothing)
+                        break;
+                }
+            }
+            while ($row = $result->fetch_assoc()) {
+                foreach ($changeFields as $field => $type) {
+                    if (!is_null($row[$field])) {
+                        switch ($changeFields[$field]) {
+                            case 'int':
+                            case 'float':
+                                settype($row[$field], $type);
+                                break;
+                            case 'datetime':
+                                if ($row[$field] == '0000-00-00 00:00:00') {
+                                    $row[$field] = null;
+                                } else {
+                                    $row[$field] = Result\DateTime::createFromFormatNull('Y-m-d H:i:s', (string)$row[$field]);
+                                }
+                                break;
+                        }
+                    }
+                }
+                if (!empty($keyField) && isset($row[$keyField])) {
+                    $return[(string)$row[$keyField]] = $row;
                 } else {
                     $return[] = $row;
                 }
@@ -1076,6 +1158,98 @@ class DB
         if ($return == true) {
             return file_get_contents($filename);
         }
+        return $a;
+    }
+
+    /**
+     * Export function 2 csv
+     *
+     * @param string $table       table
+     * @param string[] $fields      if empty=* else array of fields
+     * @param null|Collection $Collection  params array for where
+     * @param string $file        path to file
+     * @param string[] $orderBy     if empty= no sorting
+     * @param int $chunk       default 1000
+     * @param string $delimiter   delimiter of csv default ;
+     * @param string $enclosure   enclosure of csv default "
+     * @param string $escape_char escape_char of csv default \
+     *
+     * @return int[]|string[]|null
+     */
+    public static function export2CsvFromCollection(string $table, array $fields = [], ?Collection $Collection = null, string $file = '', array $orderBy = [], int $chunk = 1000, string $delimiter = ';', string $enclosure = '"', string $escape_char = "\\"): ?array
+    {
+        self::addToStats(__FUNCTION__);
+        $fieldsTxt = '*';
+        if (!empty($fields) && is_array($fields)) {
+            $fieldsArray = array();
+            foreach ($fields as $field) {
+                $fieldsArray[] = self::clean4DB($field, true);
+            }
+            $fieldsTxt = implode(", ", $fieldsArray);
+        }
+
+        if (is_null($Collection)) {
+            $where = "(1=1)";
+        } else {
+            $where = self::getWhereFromCollection($Collection);
+        }
+
+        $orderByTxt = "";
+        if (count($orderBy) > 0) {
+            $order = [];
+            foreach ($orderBy as $item) {
+                foreach ($item as $key => $volg) {
+                    $order[] = "`" . DB::clean4DB($key, true) . "` " . $volg;
+                }
+            }
+            $orderByTxt = " ORDER BY " . implode(", ", $order);
+        }
+
+        $query = "SELECT " . $fieldsTxt . " FROM " . self::clean4DB($table, true) . " WHERE " . $where . " " . $orderByTxt;
+
+        $totalResult = DB::selectQuery("SELECT count(*) as `total` FROM " . self::clean4DB($table, true) . " WHERE " . $where . ";");
+        $total = $totalResult[0]['total'];
+
+        if ($file == '') {
+            return null;
+        }
+
+        $fp = fopen($file, 'w');
+        if ($fp === false) {
+            return null;
+        }
+        $a = 0;
+
+        while ($a < $total) {
+            $query_limit = $query . ' LIMIT ' . $a . ',' . $chunk;
+
+            $result = self::query($query_limit);
+
+            if ($result instanceof \mysqli_result) {
+                while ($row = $result->fetch_assoc()) {
+                    if ($a == 0) {
+                        fputcsv($fp, array_keys($row), $delimiter, $enclosure, $escape_char);
+                    }
+                    foreach ($row as $k => $v) {
+                        if (is_string($v)) {
+                            $v = self::cleanFromDB($v);
+                        }
+                        $row[$k] = $v;
+                    }
+                    fputcsv($fp, $row, $delimiter, $enclosure, $escape_char);
+                    $a++;
+                }
+                $result->free();
+            }
+        }
+        fclose($fp);
+
+        $result = [
+            'file' => $file,
+            'totalRows' => $total,
+            'exportedRows' => $a,
+        ];
+
         return $a;
     }
 
