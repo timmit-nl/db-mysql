@@ -1029,6 +1029,7 @@ class DB
             }
             $fieldsTxt = implode(", ", $fieldsArray);
         }
+
         $query = "SELECT " . $fieldsTxt . " FROM " . self::clean4DB($table, true) . " WHERE " . self::getWhereFromParam($params);
 
         $totalResult = DB::selectQuery("SELECT count(*) as `total` FROM " . self::clean4DB($table, true) . " WHERE " . self::getWhereFromParam($params) . ";");
