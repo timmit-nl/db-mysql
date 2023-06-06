@@ -334,7 +334,7 @@ class Param implements Stringable
     /**
      * get the contents of the value
      *
-     * @return mixed
+     * @return string
      */
     public function getOperator(): string
     {
