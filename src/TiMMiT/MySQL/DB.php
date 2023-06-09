@@ -896,10 +896,14 @@ class DB
                     // todo: Remove this?
                     if (preg_match("| DEFAULT '(.*?)'|i", $cfields[strtolower($tablefield['Field'])], $matches)) {
                         $default_value = $matches[1];
-                        if ($tablefield['Default'] != $default_value) {
+                        $currentDefaultValue = $tablefield['Default'];
+                        if (is_string($currentDefaultValue)) {
+                            $currentDefaultValue = trim($currentDefaultValue, "'");
+                        }
+                        if ($currentDefaultValue != $default_value) {
                             // Add a query to change the column's default value
                             $cqueries[] = "ALTER TABLE `{$table}` ALTER COLUMN `{$tablefield['Field']}` SET DEFAULT '{$default_value}'";
-                            $for_update[$table . '.' . $tablefield['Field']] = "Changed default value of {$table}.{$tablefield['Field']} from {$tablefield['Default']} to {$default_value}";
+                            $for_update[$table . '.' . $tablefield['Field']] = "Changed default value of {$table}.{$tablefield['Field']} from {$currentDefaultValue} to {$default_value}";
                         }
                     }
 
