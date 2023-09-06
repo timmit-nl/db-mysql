@@ -322,6 +322,36 @@ class Param implements Stringable
     }
 
     /**
+     * get the name of the field
+     *
+     * @return string
+     */
+    public function getFieldName(): string
+    {
+        return $this->field;
+    }
+
+    /**
+     * get the contents of the value
+     *
+     * @return string
+     */
+    public function getOperator(): string
+    {
+        return $this->operator;
+    }
+
+    /**
+     * get the contents of the value
+     *
+     * @return mixed
+     */
+    public function getValue()
+    {
+        return $this->value;
+    }
+
+    /**
      * @inheritDoc
      *
      * @return string
