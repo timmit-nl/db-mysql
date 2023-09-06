@@ -986,7 +986,7 @@ class DB
                         if (is_string($currentDefaultValue)) {
                             $currentDefaultValue = trim($currentDefaultValue, "'");
                         }
-                        if ($currentDefaultValue != $default_value) {
+                        if ($currentDefaultValue !== $default_value) {
                             // Add a query to change the column's default value
                             $cqueries[] = "ALTER TABLE `{$table}` ALTER COLUMN `{$tablefield['Field']}` SET DEFAULT '{$default_value}'";
                             $for_update[$table . '.' . $tablefield['Field']] = "Changed default value of {$table}.{$tablefield['Field']} from {$currentDefaultValue} to {$default_value}";
