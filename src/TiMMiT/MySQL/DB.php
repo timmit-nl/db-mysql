@@ -439,6 +439,20 @@ class DB
      */
     public static function selectQuery(string $query, string $keyField = '', bool $writeNode = false): array
     {
+        return self::selectQueryToStrings($query, $keyField, $writeNode);
+    }
+
+    /**
+     * Select Query function
+     *
+     * @param string $query
+     * @param string $keyField
+     * @param bool $writeNode
+     *
+     * @return mixed[]
+     */
+    public static function selectQueryToStrings(string $query, string $keyField = '', bool $writeNode = false): array
+    {
         self::addToStats(__FUNCTION__);
         $result = self::query($query, $writeNode);
         $return = array();
@@ -447,6 +461,74 @@ class DB
             while ($row = $result->fetch_assoc()) {
                 if (!empty($keyField) && isset($row[$keyField])) {
                     $return[$row[$keyField]] = $row;
+                } else {
+                    $return[] = $row;
+                }
+            }
+            $result->free();
+        }
+        return $return;
+    }
+
+    /**
+     * Select Query function
+     *
+     * @param string $query
+     * @param string $keyField
+     * @param bool $writeNode
+     *
+     * @return mixed[]
+     */
+    public static function selectQueryToCorrectType(string $query, string $keyField = '', bool $writeNode = false): array
+    {
+        self::addToStats(__FUNCTION__);
+        $return = array();
+        $result = self::query($query, $writeNode);
+        if ($result instanceof \mysqli_result) {
+            $changeFields = array();
+            $fields = $result->fetch_fields();
+            foreach ($fields as $field) {
+                switch ($field->type) {
+                    case MYSQLI_TYPE_TINY:
+                    case MYSQLI_TYPE_SHORT:
+                    case MYSQLI_TYPE_LONG:
+                    case MYSQLI_TYPE_INT24:
+                        $changeFields[$field->name] = 'int';
+                        break;
+                    case MYSQLI_TYPE_NEWDECIMAL:
+                    case MYSQLI_TYPE_DECIMAL:
+                    case MYSQLI_TYPE_FLOAT:
+                        $changeFields[$field->name] = 'float';
+                        break;
+                    case MYSQLI_TYPE_DATETIME:
+                    case MYSQLI_TYPE_TIMESTAMP:
+                        $changeFields[$field->name] = 'datetime';
+                        break;
+                    default:
+                        $changeFields[$field->name] = 'string'; //(string is default so do nothing)
+                        break;
+                }
+            }
+            while ($row = $result->fetch_assoc()) {
+                foreach ($changeFields as $field => $type) {
+                    if (!is_null($row[$field])) {
+                        switch ($changeFields[$field]) {
+                            case 'int':
+                            case 'float':
+                                settype($row[$field], $type);
+                                break;
+                            case 'datetime':
+                                if ($row[$field] == '0000-00-00 00:00:00') {
+                                    $row[$field] = null;
+                                } else {
+                                    $row[$field] = Result\DateTime::createFromFormatNull('Y-m-d H:i:s', (string)$row[$field]);
+                                }
+                                break;
+                        }
+                    }
+                }
+                if (!empty($keyField) && isset($row[$keyField])) {
+                    $return[(string)$row[$keyField]] = $row;
                 } else {
                     $return[] = $row;
                 }
@@ -685,17 +767,17 @@ class DB
     /**
      * Make where statement from parameters
      *
-     * @param mixed[]|false $param paramater or parameters as assoc array
+     * @param mixed[]|null $param paramater or parameters as assoc array
      * @param string $table
      *
      * @return string
+     *
+     * @deprecated 10.0 Use DB\Where\Collection instead of array of params and getWhereFromCollection instead of getWhereFromParam
      */
-    public static function getWhereFromParam($param = false, string $table = ''): string
+    public static function getWhereFromParam(?array $param = null, string $table = ''): string
     {
         self::addToStats(__FUNCTION__);
-        if (is_object($param) && ($param instanceof Collection)) {
-            $where = self::getWhereFromCollection($param);
-        } elseif (is_array($param) && !empty($param)) {
+        if (is_array($param) && !empty($param)) {
             $where = "(";
             $divider_operator = 'AND';
             foreach ($param as $par) {
@@ -1009,7 +1091,7 @@ class DB
      *
      * @param string $table       table
      * @param string[] $fields      if empty=* else array of fields
-     * @param mixed[] $params      params array for where
+     * @param null|Collection $Collection  params array for where
      * @param string|null $file        path to file, null to tempfile
      * @param bool $return      true return csv else return rows of csv
      * @param string $delimiter   delimiter of csv default ;
@@ -1018,7 +1100,7 @@ class DB
      *
      * @return int|string|false
      */
-    public static function export2Csv(string $table, array $fields = array(), array $params = array(), ?string $file = null, bool $return = false, string $delimiter = ';', string $enclosure = '"', string $escape_char = "\\")
+    public static function export2Csv(string $table, array $fields = array(), ?Collection $Collection = null, ?string $file = null, bool $return = false, string $delimiter = ';', string $enclosure = '"', string $escape_char = "\\")
     {
         self::addToStats(__FUNCTION__);
         $fieldsTxt = '*';
@@ -1030,9 +1112,15 @@ class DB
             $fieldsTxt = implode(", ", $fieldsArray);
         }
 
-        $query = "SELECT " . $fieldsTxt . " FROM " . self::clean4DB($table, true) . " WHERE " . self::getWhereFromParam($params);
+        if (is_null($Collection)) {
+            $where = "(1=1)";
+        } else {
+            $where = self::getWhereFromCollection($Collection);
+        }
 
-        $totalResult = DB::selectQuery("SELECT count(*) as `total` FROM " . self::clean4DB($table, true) . " WHERE " . self::getWhereFromParam($params) . ";");
+        $query = "SELECT " . $fieldsTxt . " FROM " . self::clean4DB($table, true) . " WHERE " . $where;
+
+        $totalResult = DB::selectQuery("SELECT count(*) as `total` FROM " . self::clean4DB($table, true) . " WHERE " . $where . ";");
         $total = $totalResult[0]['total'];
         $chunk = 1000;
 
@@ -1083,16 +1171,23 @@ class DB
     /**
      * start a transaction
      *
+     * @param bool $readOnly
      * @param bool $writeNode
      *
      * @return void
      */
-    public static function startTransaction(bool $writeNode = true): void
+    public static function startTransaction(bool $readOnly = false, bool $writeNode = true): void
     {
-        self::executeQuery("SET autocommit=0;", $writeNode);
-        self::executeQuery("SET unique_checks=0;", $writeNode);
-        self::executeQuery("SET foreign_key_checks=0", $writeNode);
-        self::executeQuery("START TRANSACTION;", $writeNode);
+
+        if (!$readOnly) {
+            self::executeQuery("SET autocommit=0;", $writeNode);
+            self::executeQuery("SET unique_checks=0;", $writeNode);
+            self::executeQuery("SET foreign_key_checks=0", $writeNode);
+            $suffix = "";
+        } else {
+            $suffix = "READ ONLY";
+        }
+        self::executeQuery("START TRANSACTION " . $suffix . ";", $writeNode);
     }
 
     /**
@@ -1123,20 +1218,23 @@ class DB
      * stop a transaction
      *
      * @param bool $commit
+     * @param bool $readOnly
      * @param bool $writeNode
      *
      * @return void
      */
-    public static function endTransaction(bool $commit, bool $writeNode = true): void
+    public static function endTransaction(bool $commit, bool $readOnly = false, bool $writeNode = true): void
     {
         if ($commit) {
             self::commitTransaction($writeNode);
         } else {
             self::rollbackTransaction($writeNode);
         }
-        self::executeQuery("SET autocommit=1;", $writeNode);
-        self::executeQuery("SET unique_checks=1;", $writeNode);
-        self::executeQuery("SET foreign_key_checks=1;", $writeNode);
+        if (!$readOnly) {
+            self::executeQuery("SET autocommit=1;", $writeNode);
+            self::executeQuery("SET unique_checks=1;", $writeNode);
+            self::executeQuery("SET foreign_key_checks=1;", $writeNode);
+        }
     }
 
     /**
