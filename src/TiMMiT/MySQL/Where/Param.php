@@ -316,6 +316,8 @@ class Param implements Stringable
                     $value[$k] = $this->valueToString($v, false);
                 }
                 return "(" . implode(",", $value) . ")";
+            case 'boolean':
+                return (string)intval($value);
             default:
                 return (string)$value;
         }
