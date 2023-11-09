@@ -524,7 +524,7 @@ class DB
                         }
                     }
                 }
-                if (!empty($keyField) && isset($row[$keyField])) {
+                if ('' !== $keyField && isset($row[$keyField])) {
                     $return[(string)$row[$keyField]] = $row;
                 } else {
                     $return[] = $row;
@@ -1176,7 +1176,11 @@ class DB
         }
         fclose($fp);
         if (true === $return) {
-            return file_get_contents($filename);
+            $content = file_get_contents($filename);
+            if (is_string($content)) {
+                return $content;
+            }
+            return null;
         }
         return $a;
     }
