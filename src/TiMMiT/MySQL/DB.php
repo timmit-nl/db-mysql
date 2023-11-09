@@ -811,14 +811,14 @@ class DB
 
         // Create a tablename index for an array ($cqueries) of queries
         foreach ($queries as $qry) {
-            if (false !== ($result = preg_match("|CREATE TABLE ([^ ]*)|", $qry, $matches)) && $result > 0) {
+            if (1 === preg_match("|CREATE TABLE ([^ ]*)|", $qry, $matches)) {
                 $cqueries[trim($matches[1], '`')] = $qry;
                 $for_update[trim($matches[1], '`')] = 'Created table ' . $matches[1];
-            } elseif (false !== ($result = preg_match("|CREATE DATABASE ([^ ]*)|", $qry, $matches)) && $result > 0) {
+            } elseif (1 === preg_match("|CREATE DATABASE ([^ ]*)|", $qry, $matches)) {
                 array_unshift($cqueries, $qry);
-            } elseif (false !== ($result = preg_match("|INSERT INTO ([^ ]*)|", $qry, $matches)) && $result > 0) {
+            } elseif (1 === preg_match("|INSERT INTO ([^ ]*)|", $qry, $matches)) {
                 $iqueries[] = $qry;
-            } elseif (false !== ($result = preg_match("|UPDATE ([^ ]*)|", $qry, $matches)) && $result > 0) {
+            } elseif (1 === preg_match("|UPDATE ([^ ]*)|", $qry, $matches)) {
                 $iqueries[] = $qry;
             } else {
                 // Unrecognized query type
@@ -896,7 +896,7 @@ class DB
 
                     // Get the default value from the array
                     // todo: Remove this?
-                    if (!($result = preg_match("| DEFAULT '(.*?)'|i", $cfields[strtolower($tablefield['Field'])], $matches)) && $result > 0) {
+                    if (1 === preg_match("| DEFAULT '(.*?)'|i", $cfields[strtolower($tablefield['Field'])], $matches)) {
                         $default_value = $matches[1];
                         if ($tablefield['Default'] != $default_value) {
                             // Add a query to change the column's default value
