@@ -199,21 +199,22 @@ class DB
 
         try {
             $mlink = mysqli_connect((string)self::$config['host'], (string)self::$config['username'], (string)self::$config['password'], (string)self::$config['database'], (int)self::$config['port']);
-            if ($mlink !== false) {
+            if (false !== $mlink) {
                 self::$mlink = $mlink;
             }
             self::$writeActive = false;
-            if (!empty(self::$write) && self::$config != self::$write && !empty(self::$write['host'])) {
+
+            if (count(self::$write) > 0 && self::$config != self::$write && '' !== (self::$write['host'] ?? '')) {
                 $mlink = mysqli_connect((string)self::$write['host'], (string)self::$write['username'], (string)self::$write['password'], (string)self::$write['database'], (int)self::$write['port']);
-                if ($mlink !== false) {
+                if (false !== $mlink) {
                     self::$mlinkWrite = $mlink;
                 }
                 self::$writeActive = true;
             }
         } catch (\mysqli_sql_exception $e) {
-            if (!empty(self::$fallback) &&  !empty(self::$fallback['host'])) {
+            if (count(self::$fallback) > 0 &&  '' !== (self::$fallback['host'] ?? '')) {
                 $mlink = mysqli_connect((string)self::$fallback['host'], (string)self::$fallback['username'], (string)self::$fallback['password'], (string)self::$fallback['database'], (int)self::$fallback['port']);
-                if ($mlink !== false) {
+                if (false !== $mlink) {
                     self::$mlink = $mlink;
                 }
                 self::$fallbackActive = true;
@@ -296,7 +297,7 @@ class DB
         $returnValue = true;
         try {
             $result = mysqli_query($mlink, 'SELECT 1;');
-            if (!$result) {
+            if (false === $result) {
                 $errorno = mysqli_errno($mlink);
                 if ($errorno !== 0) {
                     $returnValue = false;
@@ -441,7 +442,7 @@ class DB
         if ($result instanceof \mysqli_result) {
             //while ($row = mysqli_fetch_assoc($result)) {
             while ($row = $result->fetch_assoc()) {
-                if (!empty($keyField) && isset($row[$keyField])) {
+                if ('' !== $keyField && isset($row[$keyField])) {
                     $return[$row[$keyField]] = $row;
                 } else {
                     $return[] = $row;
@@ -623,7 +624,7 @@ class DB
      *
      * @return string
      */
-    public static function makeId(string $hash = '', int $len = 1, $seed = "", string $add = ''): string
+    public static function makeId(string $hash = '', int $len = 1, mixed $seed = "", string $add = ''): string
     {
         self::addToStats(__FUNCTION__);
         switch ($hash):
@@ -641,7 +642,7 @@ class DB
                 $length = 25;
                 break;
         endswitch;
-        if (empty($len)) {
+        if (0 === $len) {
             $length = 0;
         } else {
             $length = max($len, $length);
@@ -712,7 +713,7 @@ class DB
                             if (!isset($par['value'])) {
                                 $par['value'] = '';
                             }
-                            if (!empty($table)) {
+                            if ('' !== $table) {
                                 $where .= "`" . $table . "`.";
                             }
                             $par['operator'] = strtoupper($par['operator']);
@@ -721,7 +722,7 @@ class DB
                                 case 'NOT IN':
                                     $value_txt = '';
                                     if (is_array($par['value'])) {
-                                        if (!empty($par['value'])) {
+                                        if (count($par['value']) > 0) {
                                             $values = [];
                                             foreach ($par['value'] as $value) {
                                                 $value = self::clean4DB((string)$value);
@@ -810,14 +811,14 @@ class DB
 
         // Create a tablename index for an array ($cqueries) of queries
         foreach ($queries as $qry) {
-            if (preg_match("|CREATE TABLE ([^ ]*)|", $qry, $matches)) {
+            if (false !== ($result = preg_match("|CREATE TABLE ([^ ]*)|", $qry, $matches)) && $result > 0) {
                 $cqueries[trim($matches[1], '`')] = $qry;
                 $for_update[trim($matches[1], '`')] = 'Created table ' . $matches[1];
-            } elseif (preg_match("|CREATE DATABASE ([^ ]*)|", $qry, $matches)) {
+            } elseif (false !== ($result = preg_match("|CREATE DATABASE ([^ ]*)|", $qry, $matches)) && $result > 0) {
                 array_unshift($cqueries, $qry);
-            } elseif (preg_match("|INSERT INTO ([^ ]*)|", $qry, $matches)) {
+            } elseif (false !== ($result = preg_match("|INSERT INTO ([^ ]*)|", $qry, $matches)) && $result > 0) {
                 $iqueries[] = $qry;
-            } elseif (preg_match("|UPDATE ([^ ]*)|", $qry, $matches)) {
+            } elseif (false !== ($result = preg_match("|UPDATE ([^ ]*)|", $qry, $matches)) && $result > 0) {
                 $iqueries[] = $qry;
             } else {
                 // Unrecognized query type
@@ -895,7 +896,7 @@ class DB
 
                     // Get the default value from the array
                     // todo: Remove this?
-                    if (preg_match("| DEFAULT '(.*?)'|i", $cfields[strtolower($tablefield['Field'])], $matches)) {
+                    if (!($result = preg_match("| DEFAULT '(.*?)'|i", $cfields[strtolower($tablefield['Field'])], $matches)) && $result > 0) {
                         $default_value = $matches[1];
                         if ($tablefield['Default'] != $default_value) {
                             // Add a query to change the column's default value
@@ -1042,7 +1043,7 @@ class DB
 
         $totalResult = DB::selectQuery("SELECT count(*) as `total` FROM " . self::clean4DB($table, true) . " WHERE " . self::getWhereFromParam($params) . ";");
         $total = 0;
-        if (is_scalar($totalResult[0]['total'] ?? null)) {
+        if (is_array($totalResult[0] ?? null) && is_scalar($totalResult[0]['total'] ?? null)) {
             $total = (int)$totalResult[0]['total'];
         }
         $chunk = 1000;
