@@ -568,8 +568,13 @@ class DB
 
         $columns = self::getColumnsOfTable($table, true);
         foreach ($columns as $columnItem) {
+            /** @var string[] */
+            $columnItem = $columnItem;
             if ($columnItem['Field'] == $column) {
-                return $columnItem['Collation'] ?? null;
+                if (isset($columnItem['Collation'])) {
+                    return $columnItem['Collation'];
+                }
+                return null;
             }
         }
         return null;
@@ -871,6 +876,8 @@ class DB
 
             // For every field in the table.
             foreach ($tablefields as $tablefield) {
+                /** @var string[]*/
+                $tablefield = $tablefield;
                 // If the table field exists in the field array ...
                 if (array_key_exists(strtolower($tablefield['Field']), $cfields)) {
                     // Get the field type from the query.
@@ -920,9 +927,14 @@ class DB
 
                 // For every index in the table.
                 foreach ($tableindices as $tableindex) {
+                    /** @var (string|int)[] */
+                    $tableindex = $tableindex;
                     // Add the index to the index data array.
                     $keyname = $tableindex['Key_name'];
-                    $index_ary[$keyname]['columns'][] = ['fieldname' => $tableindex['Column_name'], 'subpart' => $tableindex['Sub_part']];
+
+                    /** @var string[] */
+                    $columns = ['fieldname' => $tableindex['Column_name'], 'subpart' => $tableindex['Sub_part']];
+                    $index_ary[$keyname]['columns'][] = $columns;
                     $index_ary[$keyname]['unique'] = ($tableindex['Non_unique'] == 0) ? true : false;
                     $index_ary[$keyname]['index_type'] = $tableindex['Index_type'];
                 }
@@ -1028,7 +1040,7 @@ class DB
         $query = "SELECT " . $fieldsTxt . " FROM " . self::clean4DB($table, true) . " WHERE " . self::getWhereFromParam($params);
 
         $totalResult = DB::selectQuery("SELECT count(*) as `total` FROM " . self::clean4DB($table, true) . " WHERE " . self::getWhereFromParam($params) . ";");
-        $total = $totalResult[0]['total'];
+        $total = (int)($totalResult[0]['total'] ?? 0);
         $chunk = 1000;
 
         if (is_null($file)) {
@@ -1037,7 +1049,7 @@ class DB
         } else {
             $filename = $file;
         }
-        if ($filename === false) {
+        if (false === $filename) {
             return false;
         }
         $fp = fopen($filename, 'w');

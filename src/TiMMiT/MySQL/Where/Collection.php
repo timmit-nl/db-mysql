@@ -58,7 +58,7 @@ class Collection implements Iterator, Countable, Stringable
      * constructor of class
      *
      * @param string $operator
-     * @param mixed[]|null $array
+     * @param (Collection|Param)[]|null $array
      */
     public function __construct(string $operator = 'AND', ?array $array = null)
     {
