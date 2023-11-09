@@ -69,18 +69,10 @@ class Param implements Stringable
      * constructor
      *
      * @param string $field
-     * @param string|null $operator
-     * @param mixed $value
      */
-    public function __construct(string $field, ?string $operator = null, mixed $value = null)
+    public function __construct(string $field)
     {
         $this->field = $field;
-        if (!is_null($operator)) {
-            $this->operator = $operator;
-            if (!is_null($value)) {
-                $this->value = $value;
-            }
-        }
     }
 
     /**
