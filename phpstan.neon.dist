@@ -20,4 +20,5 @@ parameters:
 		- FROM_EMAIL
 	treatPhpDocTypesAsCertain: true
 includes:
+	- vendor/phpstan/phpstan-strict-rules/rules.neon
 	- vendor/phpstan/phpstan-deprecation-rules/rules.neon
