@@ -328,6 +328,7 @@ class Param implements Stringable
                 }
                 break;
         }
+        return '';
     }
 
     /**

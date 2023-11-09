@@ -948,7 +948,8 @@ class DB
                     } elseif ($index_data['unique']) {
                         $index_string .= 'UNIQUE ';
                     }
-                    if ('FULLTEXT' === strtoupper($index_data['index_type'])) {
+                    $index_type = (string)$index_data['index_type'];
+                    if ('FULLTEXT' === strtoupper($index_type)) {
                         $index_string .= 'FULLTEXT ';
                     }
                     $index_string .= 'KEY ';
@@ -1040,7 +1041,10 @@ class DB
         $query = "SELECT " . $fieldsTxt . " FROM " . self::clean4DB($table, true) . " WHERE " . self::getWhereFromParam($params);
 
         $totalResult = DB::selectQuery("SELECT count(*) as `total` FROM " . self::clean4DB($table, true) . " WHERE " . self::getWhereFromParam($params) . ";");
-        $total = (int)($totalResult[0]['total'] ?? 0);
+        $total = 0;
+        if (is_scalar($totalResult[0]['total'] ?? null)) {
+            $total = (int)$totalResult[0]['total'];
+        }
         $chunk = 1000;
 
         if (is_null($file)) {

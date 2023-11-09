@@ -31,7 +31,7 @@ class Collection implements Iterator, Countable, Stringable
      *
      * @var Param[]|Collection[]
      */
-    private array $array = array();
+    private array $array = [];
 
     /**
      * position of the Collection
@@ -58,7 +58,7 @@ class Collection implements Iterator, Countable, Stringable
      * constructor of class
      *
      * @param string $operator
-     * @param (Collection|Param)[]|null $array
+     * @param null|Param[]|Collection[] $array
      */
     public function __construct(string $operator = 'AND', ?array $array = null)
     {
