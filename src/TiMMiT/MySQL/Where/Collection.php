@@ -58,14 +58,10 @@ class Collection implements Iterator, Countable, Stringable
      * constructor of class
      *
      * @param string $operator
-     * @param null|Param[]|Collection[] $array
      */
-    public function __construct(string $operator = 'AND', ?array $array = null)
+    public function __construct(string $operator = 'AND')
     {
         $this->setOperator($operator);
-        if (!is_null($array)) {
-            $this->array = $array;
-        }
         $this->position = 0;
     }
 
