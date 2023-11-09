@@ -3,7 +3,7 @@
 /**
  * A very simple class for using MySQL.
  *
- * PHP version 7.4+
+ * PHP version 8.0+
  *
  * @package TiMMiT/DB-MySQL
  * @author  Tim Schoondergang <tim.schoondergang@TiMMiT.nl>
@@ -14,7 +14,6 @@ declare(strict_types=1);
 namespace TiMMiT\MySQL;
 
 use TiMMiT\MySQL\Where\Collection;
-use TiMMiT\MySQL\Where\Param;
 
 /**
  * MySQL DB connection.
@@ -26,14 +25,14 @@ class DB
      *
      * @var string[]|int[]
      */
-    protected static array $config = array();
+    protected static array $config = [];
 
     /**
      * The config fallback vars.
      *
      * @var string[]|int[]
      */
-    protected static array $fallback = array();
+    protected static array $fallback = [];
 
     /**
      * The backup active bool.
@@ -47,7 +46,7 @@ class DB
      *
      * @var string[]|int[]
      */
-    protected static array $write = array();
+    protected static array $write = [];
 
     /**
      * The write active bool.
@@ -89,7 +88,7 @@ class DB
      *
      * @var int[]
      */
-    protected static array $stats = array();
+    protected static array $stats = [];
 
     /**
      * Created DB connection
@@ -144,8 +143,9 @@ class DB
      */
     public static function setConfigValue(string $field, $value): bool
     {
+        /** @phpstan-ignore-next-line */
         if (isset(self::${$field})) {
-            self::${$field} = $value;
+            self::${$field} = $value; /* @phpstan-ignore-line */
             return true;
         }
         return false;
@@ -160,8 +160,9 @@ class DB
      */
     public static function getConfigValue(string $field)
     {
+        /** @phpstan-ignore-next-line */
         if (isset(self::${$field})) {
-            return self::${$field};
+            return self::${$field}; /* @phpstan-ignore-line */
         }
         return null;
     }
@@ -175,17 +176,11 @@ class DB
      *
      * @return void
      */
-    public function __construct(array $config, array $write = array(), array $fallback = array())
+    public function __construct(array $config, array $write = [], array $fallback = [])
     {
-        if (is_array($config)) {
-            self::$config = $config;
-        }
-        if (is_array($write)) {
-            self::$write = $write;
-        }
-        if (is_array($fallback)) {
-            self::$fallback = $fallback;
-        }
+        self::$config = $config;
+        self::$write = $write;
+        self::$fallback = $fallback;
         self::connect();
     }
 
@@ -293,6 +288,7 @@ class DB
             }
         }
 
+        /** @phpstan-ignore-next-line */
         if (!isset($mlink) || !is_object($mlink) || !isset($mlink->host_info)) {
             return false;
         }
@@ -441,7 +437,7 @@ class DB
     {
         self::addToStats(__FUNCTION__);
         $result = self::query($query, $writeNode);
-        $return = array();
+        $return = [];
         if ($result instanceof \mysqli_result) {
             //while ($row = mysqli_fetch_assoc($result)) {
             while ($row = $result->fetch_assoc()) {
@@ -685,17 +681,15 @@ class DB
     /**
      * Make where statement from parameters
      *
-     * @param mixed[]|false $param paramater or parameters as assoc array
+     * @param mixed[]|null $param paramater or parameters as assoc array
      * @param string $table
      *
      * @return string
      */
-    public static function getWhereFromParam($param = false, string $table = ''): string
+    public static function getWhereFromParam(?array $param = null, string $table = ''): string
     {
         self::addToStats(__FUNCTION__);
-        if (is_object($param) && ($param instanceof Collection)) {
-            $where = self::getWhereFromCollection($param);
-        } elseif (is_array($param) && !empty($param)) {
+        if (is_array($param) && count($param) > 0) {
             $where = "(";
             $divider_operator = 'AND';
             foreach ($param as $par) {
@@ -723,7 +717,7 @@ class DB
                                     $value_txt = '';
                                     if (is_array($par['value'])) {
                                         if (!empty($par['value'])) {
-                                            $values = array();
+                                            $values = [];
                                             foreach ($par['value'] as $value) {
                                                 $value = self::clean4DB((string)$value);
                                                 if (isset($par['dont_escape_special_characters']) && $par['dont_escape_special_characters'] == true) {
@@ -805,9 +799,9 @@ class DB
          *
          * @since 3.3.0
          */
-        $cqueries = array(); // Creation Queries
-        $iqueries = array(); // Insertion Queries
-        $for_update = array();
+        $cqueries = []; // Creation Queries
+        $iqueries = []; // Insertion Queries
+        $for_update = [];
 
         // Create a tablename index for an array ($cqueries) of queries
         foreach ($queries as $qry) {
@@ -833,12 +827,12 @@ class DB
             // Fetch the table column structure from the database
             $tablefields = self::getColumnsOfTable((string)$table);
 
-            if (!$tablefields) {
+            if (count($tablefields) == 0) {
                 continue;
             }
 
             // Clear the field and index arrays.
-            $cfields = $indices = array();
+            $cfields = $indices = [];
 
             // Get all of the field names in the query from between the parentheses.
             preg_match("|\((.*)\)|ms", $qry, $match2);
@@ -920,15 +914,15 @@ class DB
             // Index stuff goes here. Fetch the table index structure from the database.
             $tableindices = self::selectQuery("SHOW INDEX FROM `{$table}`;");
 
-            if ($tableindices) {
+            if (count($tableindices) > 0) {
                 // Clear the index array.
-                $index_ary = array();
+                $index_ary = [];
 
                 // For every index in the table.
                 foreach ($tableindices as $tableindex) {
                     // Add the index to the index data array.
                     $keyname = $tableindex['Key_name'];
-                    $index_ary[$keyname]['columns'][] = array('fieldname' => $tableindex['Column_name'], 'subpart' => $tableindex['Sub_part']);
+                    $index_ary[$keyname]['columns'][] = ['fieldname' => $tableindex['Column_name'], 'subpart' => $tableindex['Sub_part']];
                     $index_ary[$keyname]['unique'] = ($tableindex['Non_unique'] == 0) ? true : false;
                     $index_ary[$keyname]['index_type'] = $tableindex['Index_type'];
                 }
@@ -970,13 +964,14 @@ class DB
                     // Add the column list to the index create string.
                     $index_string = trim($index_string);
 
-                    $index_strings = array(
+                    $index_strings = [
                         "$index_string ($index_columns)",
                         "$index_string ($alt_index_columns)",
-                    );
+                    ];
 
+                    unset($index_string);
                     foreach ($index_strings as $index_string) {
-                        if (!(($aindex = array_search($index_string, $indices)) === false)) {
+                        if (!(false === ($aindex = array_search($index_string, $indices, true)))) {
                             unset($indices[$aindex]);
                             break;
                         }
@@ -985,7 +980,7 @@ class DB
             }
 
             // For every remaining index specified for the table.
-            foreach ((array) $indices as $index) {
+            foreach ($indices as $index) {
                 // Push a query line into $cqueries that adds the index to that table.
                 $cqueries[] = "ALTER TABLE `{$table}` ADD $index";
                 $for_update[] = 'Added index ' . $table . ' ' . $index;
@@ -1018,12 +1013,12 @@ class DB
      *
      * @return int|string|false
      */
-    public static function export2Csv(string $table, array $fields = array(), array $params = array(), ?string $file = null, bool $return = false, string $delimiter = ';', string $enclosure = '"', string $escape_char = "\\")
+    public static function export2Csv(string $table, array $fields = [], array $params = [], ?string $file = null, bool $return = false, string $delimiter = ';', string $enclosure = '"', string $escape_char = "\\")
     {
         self::addToStats(__FUNCTION__);
         $fieldsTxt = '*';
-        if (!empty($fields) && is_array($fields)) {
-            $fieldsArray = array();
+        if (count($fields) > 0) {
+            $fieldsArray = [];
             foreach ($fields as $field) {
                 $fieldsArray[] = self::clean4DB($field, true);
             }
@@ -1062,9 +1057,7 @@ class DB
                         fputcsv($fp, array_keys($row), $delimiter, $enclosure, $escape_char);
                     }
                     foreach ($row as $k => $v) {
-                        if (is_string($v)) {
-                            $v = self::cleanFromDB($v);
-                        }
+                        $v = self::cleanFromDB($v);
                         $row[$k] = $v;
                     }
                     fputcsv($fp, $row, $delimiter, $enclosure, $escape_char);
