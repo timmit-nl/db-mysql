@@ -3,7 +3,7 @@
 /**
  * A very simple class for using MySQL.
  *
- * PHP version 7.4+
+ * PHP version 8.0+
  *
  * @package TiMMiT/DB-MySQL
  * @author  Tim Schoondergang <tim.schoondergang@TiMMiT.nl>
@@ -35,7 +35,7 @@ class Param implements Stringable
      *
      * @var mixed
      */
-    private $value;
+    private mixed $value;
 
     /**
      * operator
@@ -69,18 +69,10 @@ class Param implements Stringable
      * constructor
      *
      * @param string $field
-     * @param string|null $operator
-     * @param mixed $value
      */
-    public function __construct(string $field, ?string $operator = null, $value = null)
+    public function __construct(string $field)
     {
         $this->field = $field;
-        if (!is_null($operator)) {
-            $this->operator = $operator;
-            if (!is_null($value)) {
-                $this->value = $value;
-            }
-        }
     }
 
     /**
@@ -259,7 +251,7 @@ class Param implements Stringable
      *
      * @throws DBException Is NULL with other operator then = or !=.
      */
-    private function valueToString($value, bool $changeOperator = false): string
+    private function valueToString(mixed $value, bool $changeOperator = false): string
     {
         switch (strtolower(gettype($value))) {
             case 'null':
@@ -280,45 +272,55 @@ class Param implements Stringable
                 }
                 return "NULL";
             case 'string':
-                // if IN or NOT IN, don't escape string because it is SQL
-                switch (substr($this->operator, -5)) {
-                    case 'QUERY':
-                        $this->cleanOperator = substr($this->operator, 0, -6);
-                        return "(" . rtrim($this->value, ";") . ")";
-                    default:
-                        $value = DB::clean4DB($value);
-                        break;
-                }
-                if (!$this->escapeSpecialCharacters) {
-                    switch ($this->operator) {
-                        case '=':
-                            $operator = 'LIKE';
-                            break;
-                        case '!=':
-                            $operator = 'NOT LIKE';
-                            break;
+                if (is_string($value)) {
+                    // if IN or NOT IN, don't escape string because it is SQL
+                    switch (substr($this->operator, -5)) {
+                        case 'QUERY':
+                            $this->cleanOperator = substr($this->operator, 0, -6);
+                            return "(" . rtrim($value, ";") . ")";
                         default:
-                            $operator = $this->operator;
+                            $value = DB::clean4DB($value);
                             break;
                     }
-                    if ($this->operator != $operator && $changeOperator) {
-                        $this->cleanOperator = $operator;
+                    if (!$this->escapeSpecialCharacters) {
+                        switch ($this->operator) {
+                            case '=':
+                                $operator = 'LIKE';
+                                break;
+                            case '!=':
+                                $operator = 'NOT LIKE';
+                                break;
+                            default:
+                                $operator = $this->operator;
+                                break;
+                        }
+                        if ($this->operator != $operator && $changeOperator) {
+                            $this->cleanOperator = $operator;
+                        }
+                        switch (substr($operator, -4)) {
+                            case 'LIKE':
+                                $value = str_replace(array('#', '\_', '*'), array("_", "_", "%"), $value);
+                                break;
+                        }
                     }
-                    switch (substr($operator, -4)) {
-                        case 'LIKE':
-                            $value = str_replace(array('#', '\_', '*'), array("_", "_", "%"), $value);
-                            break;
-                    }
+                    return "'" . $value . "'";
                 }
-                return "'" . $value . "'";
+                break;
             case 'array':
-                foreach ($value as $k => $v) {
-                    $value[$k] = $this->valueToString($v, false);
+                if (is_array($value)) {
+                    foreach ($value as $k => $v) {
+                        $value[$k] = $this->valueToString($v, false);
+                    }
+                    return "(" . implode(",", $value) . ")";
                 }
-                return "(" . implode(",", $value) . ")";
+                break;
             default:
-                return (string)$value;
+                if (is_scalar($value) || (is_object($value) && ($value instanceof Stringable))) {
+                    return (string)$value;
+                }
+                break;
         }
+        return '';
     }
 
     /**

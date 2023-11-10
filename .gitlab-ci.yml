@@ -7,7 +7,7 @@ PHP codesniffer DocBlocks:
     - merge_requests
   allow_failure: true
 PHP static:
-  image: php:8.1
+  image: php:8.2
   stage: test
   before_script:
   - apt-get upgrade
@@ -19,7 +19,7 @@ PHP static:
   - php composer.phar install --ignore-platform-reqs --optimize-autoloader --no-ansi --no-interaction --no-progress
   - touch ./CI
   script:
-  - sh test/phpstan.sh | tee phpstan_results.txt
+  - sh bin/test/phpstan.sh | tee phpstan_results.txt
   - EXIT_CODE=$?
   - exit $EXIT_CODE
   cache:
@@ -48,7 +48,7 @@ PHP docblocks:
   - php composer.phar install --ignore-platform-reqs --optimize-autoloader --no-ansi --no-interaction --no-progress
   - touch ./CI
   script:
-  - sh test/phpdoc.sh | tee phpdoc_results.txt
+  - sh bin/test/phpdoc.sh | tee phpdoc_results.txt
   - EXIT_CODE=$?
   - exit $EXIT_CODE
   cache:

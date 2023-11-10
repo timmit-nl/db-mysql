@@ -3,7 +3,7 @@
 /**
  * A very simple class for using MySQL.
  *
- * PHP version 7.4+
+ * PHP version 8.0+
  *
  * @package TiMMiT/DB-MySQL
  * @author  Tim Schoondergang <tim.schoondergang@TiMMiT.nl>
@@ -31,7 +31,7 @@ class Collection implements Iterator, Countable, Stringable
      *
      * @var Param[]|Collection[]
      */
-    private array $array = array();
+    private array $array = [];
 
     /**
      * position of the Collection
