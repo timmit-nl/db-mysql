@@ -6,6 +6,7 @@ PHP - static:
     - curl -sS https://getcomposer.org/installer | php
     - php composer.phar config -g cache-dir "$(pwd)/.composer-cache"
     - php composer.phar install --ignore-platform-reqs --optimize-autoloader --no-ansi --no-interaction --no-progress
+    - mkdir -p app
     - touch app/CI
   script:
     - sh bin/test/phpstan.sh | tee phpstan_results.txt
@@ -35,6 +36,7 @@ PHP - static strict:
     - curl -sS https://getcomposer.org/installer | php
     - php composer.phar config -g cache-dir "$(pwd)/.composer-cache"
     - php composer.phar install --ignore-platform-reqs --optimize-autoloader --no-ansi --no-interaction --no-progress
+    - mkdir -p app
     - touch app/CI
   script:
     - sh bin/test/phpstan-strict.sh | tee phpstan_results.txt
