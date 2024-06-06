@@ -299,7 +299,7 @@ class Param implements Stringable
                         }
                         switch (substr($operator, -4)) {
                             case 'LIKE':
-                                $value = str_replace(array('#', '\_', '*'), array("_", "_", "%"), $value);
+                                $value = str_replace(['#', '\_', '*'], ["_", "_", "%"], $value);
                                 break;
                         }
                     }
