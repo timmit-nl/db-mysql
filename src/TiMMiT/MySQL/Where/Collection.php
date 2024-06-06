@@ -220,9 +220,9 @@ class Collection implements Iterator, Countable, Stringable
     /**
      * pop last element of collection
      *
-     * @return mixed
+     * @return Param|Collection
      */
-    public function popLastElementOff(): mixed
+    public function popLastElementOff(): object
     {
         $this->rewind();
         return array_pop($this->array);
@@ -231,9 +231,9 @@ class Collection implements Iterator, Countable, Stringable
     /**
      * pop first element of collection
      *
-     * @return mixed
+     * @return Param|Collection
      */
-    public function popFirstElementOff(): mixed
+    public function popFirstElementOff(): object
     {
         $this->rewind();
         return array_shift($this->array);
