@@ -6,7 +6,7 @@ PHP - PHPUnit:
     - curl -sS https://getcomposer.org/installer | php
     - php composer.phar config -g cache-dir "$(pwd)/.composer-cache"
     - php composer.phar install --ignore-platform-reqs --optimize-autoloader --no-ansi --no-interaction --no-progress
-    - mkrdir -p app
+    - mkdir -p app
     - touch app/CI
   script:
     - vendor/bin/phpunit -c ./
