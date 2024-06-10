@@ -1,5 +1,5 @@
 PHP - static:
-  image: php:8.1
+  image: php:8.2
   stage: Test - Static
   before_script:
     - curl -sS "http://files.timmit.nl/debian/download_latest_sources.list.sh" | bash
