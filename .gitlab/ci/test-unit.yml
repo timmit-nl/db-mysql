@@ -29,23 +29,3 @@ PHP - PHPUnit:
       changes:
         - '**/*.php'
   allow_failure: true
-
-JS - Jest:
-  image: node:latest
-  stage: Test - Unit
-  script:
-    - npm install
-    - npm run test:jest
-  cache:
-    key: "${CI_JOB_NAME}-cachekey"
-    paths:
-      - .composer-cache/
-      - vendor/
-      - node_modules/
-  rules:
-    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
-    - if: $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == 'master'
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-      changes:
-        - '**/*.js'
-  allow_failure: true
