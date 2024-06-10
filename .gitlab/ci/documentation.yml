@@ -1,0 +1,11 @@
+pages:
+  image:
+    name: phpdoc/phpdoc
+    entrypoint: [""]
+  script:
+    - phpdoc run -t public
+  artifacts:
+    paths:
+      - public
+  only:
+    - main

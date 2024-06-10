@@ -6,6 +6,7 @@ include:
   # - local: '.gitlab/ci/test-e2e.yml'
   - local: '.gitlab/ci/security.yml'
   # - local: '.gitlab/ci/deploy.yml'
+  - local: '.gitlab/ci/documentation.yml'
 stages:
   - Linting
   - Test - Static
