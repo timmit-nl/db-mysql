@@ -3,7 +3,7 @@ pages:
     name: phpdoc/phpdoc
     entrypoint: [""]
   script:
-    - phpdoc run -t public
+    - phpdoc -t public
   artifacts:
     paths:
       - public
