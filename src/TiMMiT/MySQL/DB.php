@@ -737,6 +737,7 @@ class DB
         } else {
             // The Secure engine is the default, but we make it explicit
             if (
+                \PHP_VERSION_ID >= 80300 &&
                 class_exists('\Random\Randomizer') &&
                 class_exists('\Random\Engine\Secure') &&
                 method_exists('\Random\Randomizer', 'getBytesFromString') // @phpstan-ignore-line
