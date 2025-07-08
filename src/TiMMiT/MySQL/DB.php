@@ -733,13 +733,22 @@ class DB
             if (!is_string($seed)) {
                 $seed = serialize($seed);
             }
+            $id = base_convert(hash($hash, $seed), 16, 36);
         } else {
-            $seed = uniqid(rand() . time(), true);
+            // The Secure engine is the default, but we make it explicit
+            if (class_exists('\Random\Randomizer')) {
+                $randomizer = new \Random\Randomizer(new \Random\Engine\Secure());
+                $id = $randomizer->getBytesFromString('abcdefghijkmnpqrstuvwxyz0123456789', $length);
+            } else {
+                $idGenerated = base_convert(bin2hex(random_bytes(100)), 16, 36);
+                $totalLenght = strlen($idGenerated);
+                $begin = rand(0, $totalLenght - $length);
+                $id = substr($idGenerated, $begin, $length);
+            }
         }
-        $id = base_convert(hash($hash, $seed), 16, 36);
         $erbij = $length - strlen($id);
         if ($erbij > 0) {
-            if ($add == '') {
+            if ('' === $add) {
                 $stap = 10;
                 for ($a = 0; $a < $erbij; $a += $stap) {
                     $erbij2 = min(($erbij - $a), $stap);
