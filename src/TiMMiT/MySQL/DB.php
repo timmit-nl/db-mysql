@@ -739,7 +739,7 @@ class DB
             if (
                 \PHP_VERSION_ID >= 80300 &&
                 class_exists('\Random\Randomizer') &&
-                class_exists('\Random\Engine\Secure') &&
+                class_exists('\Random\Engine\Secure')
             ) {
                 $randomizer = new \Random\Randomizer(new \Random\Engine\Secure());
                 $id = $randomizer->getBytesFromString('abcdefghijkmnpqrstuvwxyz0123456789', $length);
