@@ -12,7 +12,6 @@
             <extension>php3</extension>
             <extension>tpl</extension>
         </extensions>
-        <visibility></visibility>
     </parser>
     <transformer>
         <target>./doc</target>
@@ -20,9 +19,6 @@
     <logging>
         <level>warn</level>
     </logging>
-    <transformations>
-        <template name="clean" />
-    </transformations>
     <files>
         <directory>./src</directory>
     </files>
