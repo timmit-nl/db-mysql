@@ -1,5 +1,5 @@
 parameters:
-	level: 8
+	level: 9
 	parallel:
 		maximumNumberOfProcesses: 4
 		minimumNumberOfJobsPerProcess: 2
@@ -18,6 +18,12 @@ parameters:
 		- CLI_HOST_ID
 		- CLI_DAEMON_ID
 		- FROM_EMAIL
-	treatPhpDocTypesAsCertain: false
+	treatPhpDocTypesAsCertain: true
+	ignoreErrors:
+		-
+			message: '#Construct empty\(\) is not allowed. Use more strict comparison.#'
+			path: src/TiMMiT/MySQL/DB.php
+			count: 2 # optional
 includes:
+	- vendor/phpstan/phpstan-strict-rules/rules.neon
 	- vendor/phpstan/phpstan-deprecation-rules/rules.neon
