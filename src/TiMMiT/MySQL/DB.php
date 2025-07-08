@@ -736,7 +736,11 @@ class DB
             $id = base_convert(hash($hash, $seed), 16, 36);
         } else {
             // The Secure engine is the default, but we make it explicit
-            if (class_exists('\Random\Randomizer')) {
+            if (
+                class_exists('\Random\Randomizer') &&
+                class_exists('\Random\Engine\Secure') &&
+                method_exists('\Random\Randomizer', 'getBytesFromString')
+            ) {
                 $randomizer = new \Random\Randomizer(new \Random\Engine\Secure());
                 $id = $randomizer->getBytesFromString('abcdefghijkmnpqrstuvwxyz0123456789', $length);
             } else {
