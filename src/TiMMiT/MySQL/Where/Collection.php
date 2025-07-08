@@ -106,13 +106,13 @@ class Collection implements Iterator, Countable, Stringable
     /**
      * add item to collection
      *
-     * @param object $item
+     * @param Param|Collection $item
      *
      * @return Collection
      *
      * @throws DBException If $item is not object of type Param or Collection.
      */
-    public function add(object $item): Collection
+    public function add(Param|Collection $item): Collection
     {
         if ($item instanceof Param || $item instanceof Collection) {
             $this->array[] = $item;
