@@ -739,7 +739,7 @@ class DB
             if (
                 class_exists('\Random\Randomizer') &&
                 class_exists('\Random\Engine\Secure') &&
-                method_exists('\Random\Randomizer', 'getBytesFromString')
+                method_exists('\Random\Randomizer', 'getBytesFromString') // phpstan-ignore-line
             ) {
                 $randomizer = new \Random\Randomizer(new \Random\Engine\Secure());
                 $id = $randomizer->getBytesFromString('abcdefghijkmnpqrstuvwxyz0123456789', $length);
@@ -939,7 +939,7 @@ class DB
 
             // Get all of the field names in the query from between the parentheses.
             preg_match("|\((.*)\)|ms", $qry, $match2);
-            $qryline = trim($match2[1]);
+            $qryline = trim($match2[1] ?? '');
 
             // Separate field lines into an array.
             $flds = explode("\n", $qryline);
@@ -948,7 +948,7 @@ class DB
             foreach ($flds as $fld) {
                 // Extract the field name.
                 preg_match("|^([^ ]*)|", trim($fld), $fvals);
-                $fieldname = trim($fvals[1], '`');
+                $fieldname = trim($fvals[1] ?? '', '`');
 
                 // Verify the found field name.
                 $validfield = true;
@@ -1178,7 +1178,9 @@ class DB
                         fputcsv($fp, array_keys($row), $delimiter, $enclosure, $escape_char);
                     }
                     foreach ($row as $k => $v) {
-                        $v = self::cleanFromDB($v);
+                        if (is_string($v)) {
+                            $v = self::cleanFromDB($v);
+                        }
                         $row[$k] = $v;
                     }
                     fputcsv($fp, $row, $delimiter, $enclosure, $escape_char);
