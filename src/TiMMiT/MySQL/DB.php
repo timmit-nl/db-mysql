@@ -739,7 +739,7 @@ class DB
             if (
                 class_exists('\Random\Randomizer') &&
                 class_exists('\Random\Engine\Secure') &&
-                method_exists('\Random\Randomizer', 'getBytesFromString') // phpstan-ignore-line
+                method_exists('\Random\Randomizer', 'getBytesFromString') // @phpstan-ignore-line
             ) {
                 $randomizer = new \Random\Randomizer(new \Random\Engine\Secure());
                 $id = $randomizer->getBytesFromString('abcdefghijkmnpqrstuvwxyz0123456789', $length);
