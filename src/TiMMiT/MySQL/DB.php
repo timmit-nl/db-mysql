@@ -926,7 +926,7 @@ class DB
 
             // Get all of the field names in the query from between the parentheses.
             preg_match("|\((.*)\)|ms", $qry, $match2);
-            $qryline = trim($match2[1]);
+            $qryline = trim($match2[1] ?? '');
 
             // Separate field lines into an array.
             $flds = explode("\n", $qryline);
@@ -935,7 +935,7 @@ class DB
             foreach ($flds as $fld) {
                 // Extract the field name.
                 preg_match("|^([^ ]*)|", trim($fld), $fvals);
-                $fieldname = trim($fvals[1], '`');
+                $fieldname = trim(($fvals[1] ?? ''), '`');
 
                 // Verify the found field name.
                 $validfield = true;
@@ -982,10 +982,11 @@ class DB
                     // todo: Remove this?
                     if (1 === preg_match("| DEFAULT '(.*?)'|i", $cfields[strtolower($tablefield['Field'])], $matches)) {
                         $default_value = $matches[1];
-                        if ($tablefield['Default'] != $default_value) {
+                        $currentDefaultValue = trim(($tablefield['Default'] ?? ''), "'");
+                        if ($currentDefaultValue !== $default_value) {
                             // Add a query to change the column's default value
                             $cqueries[] = "ALTER TABLE `{$table}` ALTER COLUMN `{$tablefield['Field']}` SET DEFAULT '{$default_value}'";
-                            $for_update[$table . '.' . $tablefield['Field']] = "Changed default value of {$table}.{$tablefield['Field']} from {$tablefield['Default']} to {$default_value}";
+                            $for_update[$table . '.' . $tablefield['Field']] = "Changed default value of {$table}.{$tablefield['Field']} from {$currentDefaultValue} to {$default_value}";
                         }
                     }
 
@@ -1165,7 +1166,9 @@ class DB
                         fputcsv($fp, array_keys($row), $delimiter, $enclosure, $escape_char);
                     }
                     foreach ($row as $k => $v) {
-                        $v = self::cleanFromDB($v);
+                        if (is_string($v)) {
+                            $v = self::cleanFromDB($v);
+                        }
                         $row[$k] = $v;
                     }
                     fputcsv($fp, $row, $delimiter, $enclosure, $escape_char);
