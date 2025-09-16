@@ -1,0 +1,12 @@
+include:
+  - template: Jobs/Secret-Detection.gitlab-ci.yml
+  - template: Jobs/SAST.gitlab-ci.yml
+sast:
+  stage: test
+  artifacts:
+    reports:
+      sast: gl-sast-report.json
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_COMMIT_REF_NAME == $CI_DEFAULT_BRANCH
+    - if: '$CI_COMMIT_REF_NAME =~ /milestone/'

@@ -1,5 +1,5 @@
 #!/bin/sh
-FILE=./CI
+FILE=app/CI
 if [ -f "$FILE" ]; then
 	PHPOPTIONS=""
 	echo CI
@@ -8,10 +8,10 @@ else
 	phprefdir="$phprefdir/public_html"
 	PHPOPTIONS="--ea-reference-dir=$phprefdir "
 fi
-
 FILE=vendor/bin/phpdoccheck
 if [ -f "$FILE" ]; then
-	TEST=$(php $PHPOPTIONS $FILE --directory=./src/)
+	echo "php $PHPOPTIONS $FILE --directory=./src/ -w"
+	TEST=$(php $PHPOPTIONS $FILE --directory=./src/ -w)
 fi
 
 echo "$TEST"

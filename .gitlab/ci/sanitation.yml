@@ -1,0 +1,16 @@
+PHP - docblocks:
+  image: pipelinecomponents/php-codesniffer:latest
+  stage: Sanitation
+  script:
+    - phpcs -s -p --colors --extensions=php --standard=.phpcs-docblock.xml --exclude=Generic.Files.LineLength,Squiz.Classes.ValidClassName ./src
+  cache:
+    key: "${CI_JOB_NAME}-cachekey"
+    paths:
+      - .composer-cache/
+      - vendor/
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == 'master'
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes:
+        - '**/*.php'

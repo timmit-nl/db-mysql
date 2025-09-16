@@ -3,7 +3,7 @@
 /**
  * A very simple class for using MySQL.
  *
- * PHP version 7.4+
+ * PHP version 8.0+
  *
  * @package TiMMiT/DB-MySQL
  * @author  Tim Schoondergang <tim.schoondergang@TiMMiT.nl>
@@ -14,7 +14,6 @@ declare(strict_types=1);
 namespace TiMMiT\MySQL;
 
 use TiMMiT\MySQL\Where\Collection;
-use TiMMiT\MySQL\Where\Param;
 
 /**
  * MySQL DB connection.
@@ -26,14 +25,14 @@ class DB
      *
      * @var string[]|int[]
      */
-    protected static array $config = array();
+    protected static array $config = [];
 
     /**
      * The config fallback vars.
      *
      * @var string[]|int[]
      */
-    protected static array $fallback = array();
+    protected static array $fallback = [];
 
     /**
      * The backup active bool.
@@ -47,7 +46,7 @@ class DB
      *
      * @var string[]|int[]
      */
-    protected static array $write = array();
+    protected static array $write = [];
 
     /**
      * The write active bool.
@@ -89,7 +88,7 @@ class DB
      *
      * @var int[]
      */
-    protected static array $stats = array();
+    protected static array $stats = [];
 
     /**
      * Created DB connection
@@ -144,8 +143,9 @@ class DB
      */
     public static function setConfigValue(string $field, $value): bool
     {
+        /** @phpstan-ignore-next-line */
         if (isset(self::${$field})) {
-            self::${$field} = $value;
+            self::${$field} = $value; /* @phpstan-ignore-line */
             return true;
         }
         return false;
@@ -160,8 +160,9 @@ class DB
      */
     public static function getConfigValue(string $field)
     {
+        /** @phpstan-ignore-next-line */
         if (isset(self::${$field})) {
-            return self::${$field};
+            return self::${$field}; /* @phpstan-ignore-line */
         }
         return null;
     }
@@ -175,17 +176,11 @@ class DB
      *
      * @return void
      */
-    public function __construct(array $config, array $write = array(), array $fallback = array())
+    public function __construct(array $config, array $write = [], array $fallback = [])
     {
-        if (is_array($config)) {
-            self::$config = $config;
-        }
-        if (is_array($write)) {
-            self::$write = $write;
-        }
-        if (is_array($fallback)) {
-            self::$fallback = $fallback;
-        }
+        self::$config = $config;
+        self::$write = $write;
+        self::$fallback = $fallback;
         self::connect();
     }
 
@@ -204,21 +199,22 @@ class DB
 
         try {
             $mlink = mysqli_connect((string)self::$config['host'], (string)self::$config['username'], (string)self::$config['password'], (string)self::$config['database'], (int)self::$config['port']);
-            if ($mlink !== false) {
+            if (false !== $mlink) {
                 self::$mlink = $mlink;
             }
             self::$writeActive = false;
-            if (!empty(self::$write) && self::$config != self::$write && !empty(self::$write['host'])) {
+
+            if (count(self::$write) > 0 && self::$config != self::$write && '' !== (self::$write['host'] ?? '')) {
                 $mlink = mysqli_connect((string)self::$write['host'], (string)self::$write['username'], (string)self::$write['password'], (string)self::$write['database'], (int)self::$write['port']);
-                if ($mlink !== false) {
+                if (false !== $mlink) {
                     self::$mlinkWrite = $mlink;
                 }
                 self::$writeActive = true;
             }
         } catch (\mysqli_sql_exception $e) {
-            if (!empty(self::$fallback) &&  !empty(self::$fallback['host'])) {
+            if (count(self::$fallback) > 0 &&  '' !== (self::$fallback['host'] ?? '')) {
                 $mlink = mysqli_connect((string)self::$fallback['host'], (string)self::$fallback['username'], (string)self::$fallback['password'], (string)self::$fallback['database'], (int)self::$fallback['port']);
-                if ($mlink !== false) {
+                if (false !== $mlink) {
                     self::$mlink = $mlink;
                 }
                 self::$fallbackActive = true;
@@ -293,6 +289,7 @@ class DB
             }
         }
 
+        /** @phpstan-ignore-next-line */
         if (!isset($mlink) || !is_object($mlink) || !isset($mlink->host_info)) {
             return false;
         }
@@ -300,7 +297,7 @@ class DB
         $returnValue = true;
         try {
             $result = mysqli_query($mlink, 'SELECT 1;');
-            if (!$result) {
+            if (false === $result) {
                 $errorno = mysqli_errno($mlink);
                 if ($errorno !== 0) {
                     $returnValue = false;
@@ -439,14 +436,96 @@ class DB
      */
     public static function selectQuery(string $query, string $keyField = '', bool $writeNode = false): array
     {
+        return self::selectQueryToStrings($query, $keyField, $writeNode);
+    }
+
+    /**
+     * Select Query function
+     *
+     * @param string $query
+     * @param string $keyField
+     * @param bool $writeNode
+     *
+     * @return mixed[]
+     */
+    public static function selectQueryToStrings(string $query, string $keyField = '', bool $writeNode = false): array
+    {
         self::addToStats(__FUNCTION__);
         $result = self::query($query, $writeNode);
-        $return = array();
+        $return = [];
         if ($result instanceof \mysqli_result) {
             //while ($row = mysqli_fetch_assoc($result)) {
             while ($row = $result->fetch_assoc()) {
-                if (!empty($keyField) && isset($row[$keyField])) {
+                if ('' !== $keyField && isset($row[$keyField])) {
                     $return[$row[$keyField]] = $row;
+                } else {
+                    $return[] = $row;
+                }
+            }
+            $result->free();
+        }
+        return $return;
+    }
+
+    /**
+     * Select Query function
+     *
+     * @param string $query
+     * @param string $keyField
+     * @param bool $writeNode
+     *
+     * @return mixed[]
+     */
+    public static function selectQueryToCorrectType(string $query, string $keyField = '', bool $writeNode = false): array
+    {
+        self::addToStats(__FUNCTION__);
+        $return = array();
+        $result = self::query($query, $writeNode);
+        if ($result instanceof \mysqli_result) {
+            $changeFields = array();
+            $fields = $result->fetch_fields();
+            foreach ($fields as $field) {
+                switch ($field->type) {
+                    case MYSQLI_TYPE_TINY:
+                    case MYSQLI_TYPE_SHORT:
+                    case MYSQLI_TYPE_LONG:
+                    case MYSQLI_TYPE_INT24:
+                        $changeFields[$field->name] = 'int';
+                        break;
+                    case MYSQLI_TYPE_NEWDECIMAL:
+                    case MYSQLI_TYPE_DECIMAL:
+                    case MYSQLI_TYPE_FLOAT:
+                        $changeFields[$field->name] = 'float';
+                        break;
+                    case MYSQLI_TYPE_DATETIME:
+                    case MYSQLI_TYPE_TIMESTAMP:
+                        $changeFields[$field->name] = 'datetime';
+                        break;
+                    default:
+                        $changeFields[$field->name] = 'string'; //(string is default so do nothing)
+                        break;
+                }
+            }
+            while ($row = $result->fetch_assoc()) {
+                foreach ($changeFields as $field => $type) {
+                    if (!is_null($row[$field])) {
+                        switch ($changeFields[$field]) {
+                            case 'int':
+                            case 'float':
+                                settype($row[$field], $type);
+                                break;
+                            case 'datetime':
+                                if ($row[$field] == '0000-00-00 00:00:00') {
+                                    $row[$field] = null;
+                                } else {
+                                    $row[$field] = Result\DateTime::createFromFormatNull('Y-m-d H:i:s', (string)$row[$field]);
+                                }
+                                break;
+                        }
+                    }
+                }
+                if ('' !== $keyField && isset($row[$keyField])) {
+                    $return[(string)$row[$keyField]] = $row;
                 } else {
                     $return[] = $row;
                 }
@@ -572,8 +651,13 @@ class DB
 
         $columns = self::getColumnsOfTable($table, true);
         foreach ($columns as $columnItem) {
+            /** @var string[] */
+            $columnItem = $columnItem;
             if ($columnItem['Field'] == $column) {
-                return $columnItem['Collation'] ?? null;
+                if (isset($columnItem['Collation'])) {
+                    return $columnItem['Collation'];
+                }
+                return null;
             }
         }
         return null;
@@ -622,7 +706,7 @@ class DB
      *
      * @return string
      */
-    public static function makeId(string $hash = '', int $len = 1, $seed = "", string $add = ''): string
+    public static function makeId(string $hash = '', int $len = 1, mixed $seed = "", string $add = ''): string
     {
         self::addToStats(__FUNCTION__);
         switch ($hash):
@@ -640,7 +724,7 @@ class DB
                 $length = 25;
                 break;
         endswitch;
-        if (empty($len)) {
+        if (0 === $len) {
             $length = 0;
         } else {
             $length = max($len, $length);
@@ -685,17 +769,17 @@ class DB
     /**
      * Make where statement from parameters
      *
-     * @param mixed[]|false $param paramater or parameters as assoc array
+     * @param mixed[]|null $param paramater or parameters as assoc array
      * @param string $table
      *
      * @return string
+     *
+     * @deprecated 10.0 Use DB\Where\Collection instead of array of params and getWhereFromCollection instead of getWhereFromParam
      */
-    public static function getWhereFromParam($param = false, string $table = ''): string
+    public static function getWhereFromParam(?array $param = null, string $table = ''): string
     {
         self::addToStats(__FUNCTION__);
-        if (is_object($param) && ($param instanceof Collection)) {
-            $where = self::getWhereFromCollection($param);
-        } elseif (is_array($param) && !empty($param)) {
+        if (is_array($param) && count($param) > 0) {
             $where = "(";
             $divider_operator = 'AND';
             foreach ($param as $par) {
@@ -713,7 +797,7 @@ class DB
                             if (!isset($par['value'])) {
                                 $par['value'] = '';
                             }
-                            if (!empty($table)) {
+                            if ('' !== $table) {
                                 $where .= "`" . $table . "`.";
                             }
                             $par['operator'] = strtoupper($par['operator']);
@@ -722,8 +806,8 @@ class DB
                                 case 'NOT IN':
                                     $value_txt = '';
                                     if (is_array($par['value'])) {
-                                        if (!empty($par['value'])) {
-                                            $values = array();
+                                        if (count($par['value']) > 0) {
+                                            $values = [];
                                             foreach ($par['value'] as $value) {
                                                 $value = self::clean4DB((string)$value);
                                                 if (isset($par['dont_escape_special_characters']) && $par['dont_escape_special_characters'] == true) {
@@ -805,20 +889,20 @@ class DB
          *
          * @since 3.3.0
          */
-        $cqueries = array(); // Creation Queries
-        $iqueries = array(); // Insertion Queries
-        $for_update = array();
+        $cqueries = []; // Creation Queries
+        $iqueries = []; // Insertion Queries
+        $for_update = [];
 
         // Create a tablename index for an array ($cqueries) of queries
         foreach ($queries as $qry) {
-            if (preg_match("|CREATE TABLE ([^ ]*)|", $qry, $matches)) {
+            if (1 === preg_match("|CREATE TABLE ([^ ]*)|", $qry, $matches)) {
                 $cqueries[trim($matches[1], '`')] = $qry;
                 $for_update[trim($matches[1], '`')] = 'Created table ' . $matches[1];
-            } elseif (preg_match("|CREATE DATABASE ([^ ]*)|", $qry, $matches)) {
+            } elseif (1 === preg_match("|CREATE DATABASE ([^ ]*)|", $qry, $matches)) {
                 array_unshift($cqueries, $qry);
-            } elseif (preg_match("|INSERT INTO ([^ ]*)|", $qry, $matches)) {
+            } elseif (1 === preg_match("|INSERT INTO ([^ ]*)|", $qry, $matches)) {
                 $iqueries[] = $qry;
-            } elseif (preg_match("|UPDATE ([^ ]*)|", $qry, $matches)) {
+            } elseif (1 === preg_match("|UPDATE ([^ ]*)|", $qry, $matches)) {
                 $iqueries[] = $qry;
             } else {
                 // Unrecognized query type
@@ -833,12 +917,12 @@ class DB
             // Fetch the table column structure from the database
             $tablefields = self::getColumnsOfTable((string)$table);
 
-            if (!$tablefields) {
+            if (count($tablefields) == 0) {
                 continue;
             }
 
             // Clear the field and index arrays.
-            $cfields = $indices = array();
+            $cfields = $indices = [];
 
             // Get all of the field names in the query from between the parentheses.
             preg_match("|\((.*)\)|ms", $qry, $match2);
@@ -877,6 +961,8 @@ class DB
 
             // For every field in the table.
             foreach ($tablefields as $tablefield) {
+                /** @var string[]*/
+                $tablefield = $tablefield;
                 // If the table field exists in the field array ...
                 if (array_key_exists(strtolower($tablefield['Field']), $cfields)) {
                     // Get the field type from the query.
@@ -894,7 +980,7 @@ class DB
 
                     // Get the default value from the array
                     // todo: Remove this?
-                    if (preg_match("| DEFAULT '(.*?)'|i", $cfields[strtolower($tablefield['Field'])], $matches)) {
+                    if (1 === preg_match("| DEFAULT '(.*?)'|i", $cfields[strtolower($tablefield['Field'])], $matches)) {
                         $default_value = $matches[1];
                         $currentDefaultValue = $tablefield['Default'];
                         if (is_string($currentDefaultValue)) {
@@ -924,15 +1010,20 @@ class DB
             // Index stuff goes here. Fetch the table index structure from the database.
             $tableindices = self::selectQuery("SHOW INDEX FROM `{$table}`;");
 
-            if ($tableindices) {
+            if (count($tableindices) > 0) {
                 // Clear the index array.
-                $index_ary = array();
+                $index_ary = [];
 
                 // For every index in the table.
                 foreach ($tableindices as $tableindex) {
+                    /** @var (string|int)[] */
+                    $tableindex = $tableindex;
                     // Add the index to the index data array.
                     $keyname = $tableindex['Key_name'];
-                    $index_ary[$keyname]['columns'][] = array('fieldname' => $tableindex['Column_name'], 'subpart' => $tableindex['Sub_part']);
+
+                    /** @var string[] */
+                    $columns = ['fieldname' => $tableindex['Column_name'], 'subpart' => $tableindex['Sub_part']];
+                    $index_ary[$keyname]['columns'][] = $columns;
                     $index_ary[$keyname]['unique'] = ($tableindex['Non_unique'] == 0) ? true : false;
                     $index_ary[$keyname]['index_type'] = $tableindex['Index_type'];
                 }
@@ -946,7 +1037,8 @@ class DB
                     } elseif ($index_data['unique']) {
                         $index_string .= 'UNIQUE ';
                     }
-                    if ('FULLTEXT' === strtoupper($index_data['index_type'])) {
+                    $index_type = (string)$index_data['index_type'];
+                    if ('FULLTEXT' === strtoupper($index_type)) {
                         $index_string .= 'FULLTEXT ';
                     }
                     $index_string .= 'KEY ';
@@ -974,13 +1066,14 @@ class DB
                     // Add the column list to the index create string.
                     $index_string = trim($index_string);
 
-                    $index_strings = array(
+                    $index_strings = [
                         "$index_string ($index_columns)",
                         "$index_string ($alt_index_columns)",
-                    );
+                    ];
 
+                    unset($index_string);
                     foreach ($index_strings as $index_string) {
-                        if (!(($aindex = array_search($index_string, $indices)) === false)) {
+                        if (!(false === ($aindex = array_search($index_string, $indices, true)))) {
                             unset($indices[$aindex]);
                             break;
                         }
@@ -989,7 +1082,7 @@ class DB
             }
 
             // For every remaining index specified for the table.
-            foreach ((array) $indices as $index) {
+            foreach ($indices as $index) {
                 // Push a query line into $cqueries that adds the index to that table.
                 $cqueries[] = "ALTER TABLE `{$table}` ADD $index";
                 $for_update[] = 'Added index ' . $table . ' ' . $index;
@@ -1013,32 +1106,42 @@ class DB
      *
      * @param string $table       table
      * @param string[] $fields      if empty=* else array of fields
-     * @param mixed[] $params      params array for where
+     * @param null|Collection $Collection  params array for where
      * @param string|null $file        path to file, null to tempfile
      * @param bool $return      true return csv else return rows of csv
      * @param string $delimiter   delimiter of csv default ;
      * @param string $enclosure   enclosure of csv default "
      * @param string $escape_char escape_char of csv default \
      *
-     * @return int|string|false
+     * @return int|string|null Null on error.
      */
-    public static function export2Csv(string $table, array $fields = array(), array $params = array(), ?string $file = null, bool $return = false, string $delimiter = ';', string $enclosure = '"', string $escape_char = "\\")
+    public static function export2Csv(string $table, array $fields = [], ?Collection $Collection = null, ?string $file = null, bool $return = false, string $delimiter = ';', string $enclosure = '"', string $escape_char = "\\")
     {
         self::addToStats(__FUNCTION__);
         $fieldsTxt = '*';
-        if (!empty($fields) && is_array($fields)) {
-            $fieldsArray = array();
+        if (count($fields) > 0) {
+            $fieldsArray = [];
             foreach ($fields as $field) {
                 $fieldsArray[] = self::clean4DB($field, true);
             }
             $fieldsTxt = implode(", ", $fieldsArray);
         }
 
-        $query = "SELECT " . $fieldsTxt . " FROM " . self::clean4DB($table, true) . " WHERE " . self::getWhereFromParam($params);
+        if (is_null($Collection)) {
+            $where = "(1=1)";
+        } else {
+            $where = self::getWhereFromCollection($Collection);
+        }
 
-        $totalResult = DB::selectQuery("SELECT count(*) as `total` FROM " . self::clean4DB($table, true) . " WHERE " . self::getWhereFromParam($params) . ";");
-        $total = $totalResult[0]['total'];
+        $totalResult = DB::selectQuery("SELECT count(*) as `total` FROM " . self::clean4DB($table, true) . " WHERE " . $where . ";");
+
+        $total = 0;
+        if (is_array($totalResult[0] ?? null) && is_scalar($totalResult[0]['total'] ?? null)) {
+            $total = (int)$totalResult[0]['total'];
+        }
         $chunk = 1000;
+
+        $query = "SELECT " . $fieldsTxt . " FROM " . self::clean4DB($table, true) . " WHERE " . $where;
 
         if (is_null($file)) {
             $filename = tempnam(sys_get_temp_dir(), 'CSV');
@@ -1046,12 +1149,12 @@ class DB
         } else {
             $filename = $file;
         }
-        if ($filename === false) {
-            return false;
+        if (false === $filename) {
+            return null;
         }
         $fp = fopen($filename, 'w');
-        if ($fp === false) {
-            return false;
+        if (false === $fp) {
+            return null;
         }
         $a = 0;
 
@@ -1066,9 +1169,7 @@ class DB
                         fputcsv($fp, array_keys($row), $delimiter, $enclosure, $escape_char);
                     }
                     foreach ($row as $k => $v) {
-                        if (is_string($v)) {
-                            $v = self::cleanFromDB($v);
-                        }
+                        $v = self::cleanFromDB($v);
                         $row[$k] = $v;
                     }
                     fputcsv($fp, $row, $delimiter, $enclosure, $escape_char);
@@ -1078,8 +1179,12 @@ class DB
             }
         }
         fclose($fp);
-        if ($return == true) {
-            return file_get_contents($filename);
+        if (true === $return) {
+            $content = file_get_contents($filename);
+            if (is_string($content)) {
+                return $content;
+            }
+            return null;
         }
         return $a;
     }
@@ -1087,16 +1192,23 @@ class DB
     /**
      * start a transaction
      *
+     * @param bool $readOnly
      * @param bool $writeNode
      *
      * @return void
      */
-    public static function startTransaction(bool $writeNode = true): void
+    public static function startTransaction(bool $readOnly = false, bool $writeNode = true): void
     {
-        self::executeQuery("SET autocommit=0;", $writeNode);
-        self::executeQuery("SET unique_checks=0;", $writeNode);
-        self::executeQuery("SET foreign_key_checks=0", $writeNode);
-        self::executeQuery("START TRANSACTION;", $writeNode);
+
+        if (!$readOnly) {
+            self::executeQuery("SET autocommit=0;", $writeNode);
+            self::executeQuery("SET unique_checks=0;", $writeNode);
+            self::executeQuery("SET foreign_key_checks=0", $writeNode);
+            $suffix = "";
+        } else {
+            $suffix = "READ ONLY";
+        }
+        self::executeQuery("START TRANSACTION " . $suffix . ";", $writeNode);
     }
 
     /**
@@ -1127,20 +1239,23 @@ class DB
      * stop a transaction
      *
      * @param bool $commit
+     * @param bool $readOnly
      * @param bool $writeNode
      *
      * @return void
      */
-    public static function endTransaction(bool $commit, bool $writeNode = true): void
+    public static function endTransaction(bool $commit, bool $readOnly = false, bool $writeNode = true): void
     {
         if ($commit) {
             self::commitTransaction($writeNode);
         } else {
             self::rollbackTransaction($writeNode);
         }
-        self::executeQuery("SET autocommit=1;", $writeNode);
-        self::executeQuery("SET unique_checks=1;", $writeNode);
-        self::executeQuery("SET foreign_key_checks=1;", $writeNode);
+        if (!$readOnly) {
+            self::executeQuery("SET autocommit=1;", $writeNode);
+            self::executeQuery("SET unique_checks=1;", $writeNode);
+            self::executeQuery("SET foreign_key_checks=1;", $writeNode);
+        }
     }
 
     /**

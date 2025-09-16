@@ -3,7 +3,7 @@
 /**
  * A very simple class for using MySQL.
  *
- * PHP version 7.4+
+ * PHP version 8.0+
  *
  * @package TiMMiT/DB-MySQL
  * @author  Tim Schoondergang <tim.schoondergang@TiMMiT.nl>
@@ -31,7 +31,7 @@ class Collection implements Iterator, Countable, Stringable
      *
      * @var Param[]|Collection[]
      */
-    private array $array = array();
+    private array $array = [];
 
     /**
      * position of the Collection
@@ -58,14 +58,10 @@ class Collection implements Iterator, Countable, Stringable
      * constructor of class
      *
      * @param string $operator
-     * @param mixed[]|null $array
      */
-    public function __construct(string $operator = 'AND', ?array $array = null)
+    public function __construct(string $operator = 'AND')
     {
         $this->setOperator($operator);
-        if (!is_null($array)) {
-            $this->array = $array;
-        }
         $this->position = 0;
     }
 
@@ -224,9 +220,9 @@ class Collection implements Iterator, Countable, Stringable
     /**
      * pop last element of collection
      *
-     * @return mixed
+     * @return null|Param|Collection
      */
-    public function popLastElementOff(): mixed
+    public function popLastElementOff(): ?object
     {
         $this->rewind();
         return array_pop($this->array);
@@ -235,9 +231,9 @@ class Collection implements Iterator, Countable, Stringable
     /**
      * pop first element of collection
      *
-     * @return mixed
+     * @return null|Param|Collection
      */
-    public function popFirstElementOff(): mixed
+    public function popFirstElementOff(): ?object
     {
         $this->rewind();
         return array_shift($this->array);
