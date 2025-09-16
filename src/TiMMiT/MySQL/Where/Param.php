@@ -244,14 +244,14 @@ class Param implements Stringable
     /**
      * valueToString
      *
-     * @param mixed $value
+     * @param array|bool|float|int|string|null $value
      * @param bool $changeOperator
      *
      * @return string
      *
      * @throws DBException Is NULL with other operator then = or !=.
      */
-    private function valueToString(mixed $value, bool $changeOperator = false): string
+    private function valueToString(array|bool|float|int|string|null $value, bool $changeOperator = false): string
     {
         switch (strtolower(gettype($value))) {
             case 'null':
