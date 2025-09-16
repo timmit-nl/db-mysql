@@ -16,7 +16,7 @@ namespace TiMMiT\MySQL\Where;
 use Iterator;
 use Countable;
 use Stringable;
-use TiMMiT\MySQL\DB;
+
 use TiMMiT\MySQL\DBException;
 
 /**
@@ -109,17 +109,11 @@ class Collection implements Iterator, Countable, Stringable
      * @param Param|Collection $item
      *
      * @return Collection
-     *
-     * @throws DBException If $item is not object of type Param or Collection.
      */
     public function add(Param|Collection $item): Collection
     {
-        if ($item instanceof Param || $item instanceof Collection) {
-            $this->array[] = $item;
-            ++$this->position;
-        } else {
-            throw new DBException("Can only add Param or Collection to collection", 9901);
-        }
+        $this->array[] = $item;
+        ++$this->position;
         return $this;
     }
 
@@ -172,7 +166,7 @@ class Collection implements Iterator, Countable, Stringable
      *
      * @return Param|Collection
      */
-    public function current(): object
+    public function current(): Param|Collection
     {
         return $this->array[$this->position];
     }
@@ -222,7 +216,7 @@ class Collection implements Iterator, Countable, Stringable
      *
      * @return null|Param|Collection
      */
-    public function popLastElementOff(): ?object
+    public function popLastElementOff(): null|Param|Collection
     {
         $this->rewind();
         return array_pop($this->array);
@@ -233,7 +227,7 @@ class Collection implements Iterator, Countable, Stringable
      *
      * @return null|Param|Collection
      */
-    public function popFirstElementOff(): ?object
+    public function popFirstElementOff(): null|Param|Collection
     {
         $this->rewind();
         return array_shift($this->array);
