@@ -982,7 +982,7 @@ class DB
                     // todo: Remove this?
                     if (1 === preg_match("| DEFAULT '(.*?)'|i", $cfields[strtolower($tablefield['Field'])], $matches)) {
                         $default_value = $matches[1];
-                        $currentDefaultValue = $tablefield['Default'];
+                        $currentDefaultValue = $tablefield['Default'] ?? '';
                         if (is_string($currentDefaultValue)) {
                             $currentDefaultValue = trim($currentDefaultValue, "'");
                         }
