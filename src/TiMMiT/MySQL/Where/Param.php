@@ -267,7 +267,7 @@ class Param implements Stringable
                     default:
                         throw new DBException("value NULL can only be used with = or !=", 9910);
                 }
-                if ($this->operator != $operator && $changeOperator) {
+                if ($this->operator !== $operator && $changeOperator) {
                     $this->cleanOperator = $operator;
                 }
                 return "NULL";
@@ -294,7 +294,7 @@ class Param implements Stringable
                                 $operator = $this->operator;
                                 break;
                         }
-                        if ($this->operator != $operator && $changeOperator) {
+                        if ($this->operator !== $operator && $changeOperator) {
                             $this->cleanOperator = $operator;
                         }
                         switch (substr($operator, -4)) {
