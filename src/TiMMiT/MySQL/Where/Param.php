@@ -309,11 +309,21 @@ class Param implements Stringable
             case 'array':
                 if (is_array($value)) {
                     foreach ($value as $k => $v) {
-                        $value[$k] = $this->valueToString($v, false);
+                        switch(strtolower(gettype($v)) {
+                            case 'null':
+                            case 'string':
+                            case 'array':
+                            case 'boolean':
+                            case 'int':
+                            case 'double':
+                            case 'float':
+                                $value[$k] = $this->valueToString($v, false);
+                                break;
+                        }
                     }
                     return "(" . implode(",", $value) . ")";
                 }
-                return "(" . implode(",", $value) . ")";
+                break;
             case 'boolean':
                 return (string)intval($value);
             default:
