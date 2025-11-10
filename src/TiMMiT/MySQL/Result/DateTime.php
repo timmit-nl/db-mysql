@@ -36,7 +36,7 @@ final class DateTime extends \DateTime implements Stringable
     {
         $return = $this->format($this->defaultFormat);
         // check for wrong parsed 0000-00-00 00:00:00
-        if ($return == '-0001-11-30 00:00:00') {
+        if ($return === '-0001-11-30 00:00:00') {
             $return = '0000-00-00 00:00:00';
         }
         return $return;
