@@ -112,13 +112,6 @@ class DB
     protected static string $charset = 'utf8mb4';
 
     /**
-     * The default collation for the connection.
-     *
-     * @var null|string
-     */
-    protected static ?string $collation = null;
-
-    /**
      * The mysqliReportingExceptionOn.
      *
      * @var int
@@ -180,15 +173,18 @@ class DB
      * @param string[]|int[] $config   settings as assoc array
      * @param string[]|int[] $write    settings as assoc array
      * @param string[]|int[] $fallback settings as assoc array
+     * @param bool $connect connect to the database
      *
      * @return void
      */
-    public function __construct(array $config, array $write = [], array $fallback = [])
+    public function __construct(array $config, array $write = [], array $fallback = [], bool $connect = true)
     {
         self::$config = $config;
         self::$write = $write;
         self::$fallback = $fallback;
-        self::connect();
+        if ($connect) {
+            self::connect();
+        }
     }
 
     /**
@@ -231,7 +227,6 @@ class DB
             }
         }
 
-
         if (self::ping()) {
             self::setCharsetOnConnection(self::$mlink);
         }
@@ -253,9 +248,6 @@ class DB
     {
         try {
             mysqli_set_charset($mlink, self::$charset);
-            if (!is_null(self::$collation)) {
-                mysqli_query($mlink, "SET collation_connection = '" . self::$collation . "';");
-            }
         } catch (\mysqli_sql_exception $e) {
         }
     }
