@@ -309,7 +309,7 @@ class Param implements Stringable
             case 'array':
                 if (is_array($value)) {
                     foreach ($value as $k => $v) {
-                        switch(strtolower(gettype($v)) {
+                        switch(strtolower(gettype($v))) {
                             case 'null':
                             case 'string':
                             case 'array':
