@@ -25,7 +25,7 @@ class DB
      *
      * @var string[]|int[]
      */
-    protected static array $config = [];
+    protected static array $primary = [];
 
     /**
      * The config fallback vars.
@@ -105,11 +105,11 @@ class DB
     protected static \mysqli $mlinkWrite;
 
     /**
-     * The default charset.
+     * The default charset for the connection.
      *
      * @var string
      */
-    protected static string $charset = "utf8mb4";
+    protected static string $charset = 'utf8mb4';
 
     /**
      * The mysqliReportingExceptionOn.
@@ -170,18 +170,32 @@ class DB
     /**
      * Class constructor.
      *
-     * @param string[]|int[] $config   settings as assoc array
+     * @param string[]|int[] $primary  settings as assoc array
      * @param string[]|int[] $write    settings as assoc array
      * @param string[]|int[] $fallback settings as assoc array
      *
      * @return void
      */
-    public function __construct(array $config, array $write = [], array $fallback = [])
+    public function __construct(array $primary, array $write = [], array $fallback = [])
     {
-        self::$config = $config;
+        self::loadConfig($primary, $write, $fallback);
+        self::connect();
+    }
+
+    /**
+     * load the config into the correct properties
+     *
+     * @param string[]|int[] $primary  settings as assoc array
+     * @param string[]|int[] $write    settings as assoc array
+     * @param string[]|int[] $fallback settings as assoc array
+     *
+     * @return void
+     */
+    public static function loadConfig(array $primary, array $write = [], array $fallback = []): void
+    {
+        self::$primary = $primary;
         self::$write = $write;
         self::$fallback = $fallback;
-        self::connect();
     }
 
     /**
@@ -198,13 +212,13 @@ class DB
         mysqli_report(self::$mysqliReportingExceptionOn);
 
         try {
-            $mlink = mysqli_connect((string)self::$config['host'], (string)self::$config['username'], (string)self::$config['password'], (string)self::$config['database'], (int)self::$config['port']);
+            $mlink = mysqli_connect((string)self::$primary['host'], (string)self::$primary['username'], (string)self::$primary['password'], (string)self::$primary['database'], (int)self::$primary['port']);
             if (false !== $mlink) {
                 self::$mlink = $mlink;
             }
             self::$writeActive = false;
 
-            if (count(self::$write) > 0 && self::$config != self::$write && '' !== (self::$write['host'] ?? '')) {
+            if (count(self::$write) > 0 && self::$primary !== self::$write && '' !== (self::$write['host'] ?? '')) {
                 $mlink = mysqli_connect((string)self::$write['host'], (string)self::$write['username'], (string)self::$write['password'], (string)self::$write['database'], (int)self::$write['port']);
                 if (false !== $mlink) {
                     self::$mlinkWrite = $mlink;
@@ -224,14 +238,28 @@ class DB
             }
         }
 
-
         if (self::ping()) {
-            mysqli_set_charset(self::$mlink, self::$charset);
+            self::setCharsetOnConnection(self::$mlink);
         }
         if (self::$writeActive && self::ping(true)) {
-            mysqli_set_charset(self::$mlinkWrite, self::$charset);
+            self::setCharsetOnConnection(self::$mlinkWrite);
             self::$wsrepSupport = DB::checkIfWsrep();
             self::setWsrepSyncWait(true);
+        }
+    }
+
+    /**
+     * setCharsetOnConnection
+     *
+     * @param \mysqli $mlink
+     *
+     * @return void
+     */
+    private static function setCharsetOnConnection(\mysqli $mlink): void
+    {
+        try {
+            mysqli_set_charset($mlink, self::$charset);
+        } catch (\mysqli_sql_exception $e) {
         }
     }
 
@@ -312,7 +340,6 @@ class DB
         }
         return $returnValue;
     }
-
 
     /**
      * Update Query function
@@ -663,7 +690,6 @@ class DB
         return null;
     }
 
-
     /**
      * clean variable for DB against SQL injection
      *
@@ -922,7 +948,8 @@ class DB
             }
 
             // Clear the field and index arrays.
-            $cfields = $indices = [];
+            $cfields = [];
+            $indices = [];
 
             // Get all of the field names in the query from between the parentheses.
             preg_match("|\((.*)\)|ms", $qry, $match2);
@@ -1296,7 +1323,7 @@ class DB
      *
      * @return void
      */
-    private static function addToStats(string $queryType = ''): void
+    private static function addToStats(string $queryType): void
     {
         if (!isset(self::$stats[$queryType])) {
             self::$stats[$queryType] = 0;
