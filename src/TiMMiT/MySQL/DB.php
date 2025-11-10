@@ -822,8 +822,8 @@ class DB
                         if (!isset($par['operator'])) {
                             $par['operator'] = '';
                         }
-                        if (is_array($par['param']) && ('IN' !== $par['operator'] || 'NOT IN' !== $par['operator'])) {
-                            $where .= '' . self::getWhereFromParam($par['param'], $table) . ' ' . self::clean4DB($divider_operator) . " ";
+                        if (is_array($par['param']) && (!in_array($par['operator'], ['IN', 'NOT IN'], true))) {
+                            $where .= '' . self::getWhereFromParam($par['param'], $table) . ' ' . self::clean4DB((string)$divider_operator) . " ";
                         } else {
                             if (!isset($par['value'])) {
                                 $par['value'] = '';
@@ -853,7 +853,7 @@ class DB
                                     } else {
                                         $value_txt = $par['value'];
                                     }
-                                    $where .= "`" . self::clean4DB($par['param'], true) . "` " . $par['operator'] . " (" . $value_txt . ") " . self::clean4DB($divider_operator) . " ";
+                                    $where .= "`" . self::clean4DB((string)$par['param'], true) . "` " . $par['operator'] . " (" . $value_txt . ") " . self::clean4DB((string)$divider_operator) . " ";
                                     break;
                                 default:
                                     $value = self::clean4DB((string)$par['value']);
@@ -862,7 +862,7 @@ class DB
                                         $value = str_replace('\_', "_", $value);
                                         $value = str_replace('*', "%", $value);
                                     }
-                                    $where .= "`" . self::clean4DB($par['param'], true) . "` " . self::clean4DB($par['operator']) . " '" . $value . "' " . self::clean4DB($divider_operator) . " ";
+                                    $where .= "`" . self::clean4DB((string)$par['param'], true) . "` " . self::clean4DB((string)$par['operator']) . " '" . $value . "' " . self::clean4DB((string)$divider_operator) . " ";
                                     break;
                             }
                         }
@@ -872,7 +872,7 @@ class DB
             if (is_array($par) && isset($par['divider_operator'])) {
                 $divider_operator = $par['divider_operator'];
             }
-            $where = substr($where, 0, (0 - strlen(" " . self::clean4DB($divider_operator) . " ")));
+            $where = substr($where, 0, (0 - strlen(" " . self::clean4DB((string)$divider_operator) . " ")));
             $where .= ")";
             if (")" === $where) {
                 $where = "";
@@ -910,7 +910,7 @@ class DB
         // Separate individual queries into an array
         if (!is_array($queries)) {
             $queries = explode(';', $queries);
-            $queries = array_filter($queries);
+            $queries = array_filter($queries, 'empty');
         }
 
         /**
@@ -1053,7 +1053,7 @@ class DB
                     /** @var string[] */
                     $columns = ['fieldname' => $tableindex['Column_name'], 'subpart' => $tableindex['Sub_part']];
                     $index_ary[$keyname]['columns'][] = $columns;
-                    $index_ary[$keyname]['unique'] = ($tableindex['Non_unique'] == 0) ? true : false;
+                    $index_ary[$keyname]['unique'] = ($tableindex['Non_unique'] === 0) ? true : false;
                     $index_ary[$keyname]['index_type'] = $tableindex['Index_type'];
                 }
 
@@ -1071,20 +1071,20 @@ class DB
                         $index_string .= 'FULLTEXT ';
                     }
                     $index_string .= 'KEY ';
-                    if ($index_name != 'PRIMARY') {
+                    if ('PRIMARY' !== $index_name) {
                         $index_string .= "`" . $index_name . "`";
                     }
                     $index_columns = '';
 
                     // For each column in the index.
                     foreach ($index_data['columns'] as $column_data) {
-                        if ($index_columns != '') {
+                        if ('' !== $index_columns) {
                             $index_columns .= ',';
                         }
 
                         // Add the field to the column list string.
                         $index_columns .= "`" . $column_data['fieldname'] . "`";
-                        if ($column_data['subpart'] != '') {
+                        if ('' !== $column_data['subpart']) {
                             $index_columns .= '(' . $column_data['subpart'] . ')';
                         }
                     }
