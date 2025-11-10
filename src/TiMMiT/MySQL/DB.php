@@ -173,7 +173,7 @@ class DB
      * @param string[]|int[] $config   settings as assoc array
      * @param string[]|int[] $write    settings as assoc array
      * @param string[]|int[] $fallback settings as assoc array
-     * @param bool $connect connect to the database
+     * @param bool  $connect connect to the database
      *
      * @return void
      */
