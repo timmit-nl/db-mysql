@@ -862,7 +862,7 @@ class DB
                                         $value = str_replace('\_', "_", $value);
                                         $value = str_replace('*', "%", $value);
                                     }
-                                    $where .= "`" . self::clean4DB((string)$par['param'], true) . "` " . self::clean4DB((string)$par['operator']) . " '" . $value . "' " . self::clean4DB((string)$divider_operator) . " ";
+                                    $where .= "`" . self::clean4DB((string)$par['param'], true) . "` " . self::clean4DB($par['operator']) . " '" . $value . "' " . self::clean4DB((string)$divider_operator) . " ";
                                     break;
                             }
                         }
