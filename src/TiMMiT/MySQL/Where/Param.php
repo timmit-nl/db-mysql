@@ -104,7 +104,7 @@ class Param implements Stringable
     /**
      * is =
      *
-     * @param mixed $value
+     * @param bool|float|int|string|null $value
      *
      * @return Param
      */
@@ -118,7 +118,7 @@ class Param implements Stringable
     /**
      * isNot !=
      *
-     * @param mixed $value
+     * @param bool|float|int|string|null $value
      *
      * @return Param
      */
@@ -132,7 +132,7 @@ class Param implements Stringable
     /**
      * greaterOrEqual >=
      *
-     * @param mixed $value
+     * @param bool|float|int|string|null $value
      *
      * @return Param
      */
@@ -146,7 +146,7 @@ class Param implements Stringable
     /**
      * greater >
      *
-     * @param mixed $value
+     * @param bool|float|int|string|null $value
      *
      * @return Param
      */
@@ -160,7 +160,7 @@ class Param implements Stringable
     /**
      * lower or equal <=
      *
-     * @param mixed $value
+     * @param bool|float|int|string|null $value
      *
      * @return Param
      */
@@ -174,7 +174,7 @@ class Param implements Stringable
     /**
      * lower <
      *
-     * @param mixed $value
+     * @param bool|float|int|string|null $value
      *
      * @return Param
      */
