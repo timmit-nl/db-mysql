@@ -25,7 +25,7 @@ class DB
      *
      * @var string[]|int[]
      */
-    protected static array $config = [];
+    protected static array $primary = [];
 
     /**
      * The config fallback vars.
@@ -173,18 +173,29 @@ class DB
      * @param string[]|int[] $config   settings as assoc array
      * @param string[]|int[] $write    settings as assoc array
      * @param string[]|int[] $fallback settings as assoc array
-     * @param bool  $connect connect to the database
      *
      * @return void
      */
-    public function __construct(array $config, array $write = [], array $fallback = [], bool $connect = true)
+    public function __construct(array $config, array $write = [], array $fallback = [])
     {
-        self::$config = $config;
+        self::loadConfig($config, $write, $fallback);
+        self::connect();
+    }
+
+    /**
+     * load the config into the correct properties
+     *
+     * @param string[]|int[] $config   settings as assoc array
+     * @param string[]|int[] $write    settings as assoc array
+     * @param string[]|int[] $fallback settings as assoc array
+     *
+     * @return void
+     */
+    public static function loadConfig(array $primary, array $write = [], array $fallback = []): void
+    {
+        self::$primary = $primary;
         self::$write = $write;
         self::$fallback = $fallback;
-        if ($connect) {
-            self::connect();
-        }
     }
 
     /**
@@ -201,13 +212,13 @@ class DB
         mysqli_report(self::$mysqliReportingExceptionOn);
 
         try {
-            $mlink = mysqli_connect((string)self::$config['host'], (string)self::$config['username'], (string)self::$config['password'], (string)self::$config['database'], (int)self::$config['port']);
+            $mlink = mysqli_connect((string)self::$primary['host'], (string)self::$primary['username'], (string)self::$primary['password'], (string)self::$primary['database'], (int)self::$primary['port']);
             if (false !== $mlink) {
                 self::$mlink = $mlink;
             }
             self::$writeActive = false;
 
-            if (count(self::$write) > 0 && self::$config != self::$write && '' !== (self::$write['host'] ?? '')) {
+            if (count(self::$write) > 0 && self::$primary !== self::$write && '' !== (self::$write['host'] ?? '')) {
                 $mlink = mysqli_connect((string)self::$write['host'], (string)self::$write['username'], (string)self::$write['password'], (string)self::$write['database'], (int)self::$write['port']);
                 if (false !== $mlink) {
                     self::$mlinkWrite = $mlink;
