@@ -520,7 +520,7 @@ class DB
                                 settype($row[$field], $type);
                                 break;
                             case 'datetime':
-                                if ($row[$field] == '0000-00-00 00:00:00') {
+                                if ('0000-00-00 00:00:00' === $row[$field]) {
                                     $row[$field] = null;
                                 } else {
                                     $row[$field] = Result\DateTime::createFromFormatNull('Y-m-d H:i:s', (string)$row[$field]);
@@ -658,7 +658,7 @@ class DB
         foreach ($columns as $columnItem) {
             /** @var string[] */
             $columnItem = $columnItem;
-            if ($columnItem['Field'] == $column) {
+            if ($columnItem['Field'] === $column) {
                 if (isset($columnItem['Collation'])) {
                     return $columnItem['Collation'];
                 }
@@ -788,10 +788,10 @@ class DB
             $where = "(";
             $divider_operator = 'AND';
             foreach ($param as $par) {
-                if (isset($par['divider_operator'])) {
+                if (is_array($par) && isset($par['divider_operator'])) {
                     $divider_operator = $par['divider_operator'];
                 }
-                if (isset($par['param'])) {
+                if (is_array($par) && isset($par['param'])) {
                     if (!empty($par['param'])) {
                         if (!isset($par['operator'])) {
                             $par['operator'] = '';
@@ -843,7 +843,7 @@ class DB
                     }
                 }
             }
-            if (isset($par['divider_operator'])) {
+            if (is_array($par) && isset($par['divider_operator'])) {
                 $divider_operator = $par['divider_operator'];
             }
             $where = substr($where, 0, (0 - strlen(" " . self::clean4DB($divider_operator) . " ")));
