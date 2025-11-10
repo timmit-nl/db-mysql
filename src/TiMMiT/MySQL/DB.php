@@ -170,22 +170,22 @@ class DB
     /**
      * Class constructor.
      *
-     * @param string[]|int[] $config   settings as assoc array
+     * @param string[]|int[] $primary   settings as assoc array
      * @param string[]|int[] $write    settings as assoc array
      * @param string[]|int[] $fallback settings as assoc array
      *
      * @return void
      */
-    public function __construct(array $config, array $write = [], array $fallback = [])
+    public function __construct(array $primary, array $write = [], array $fallback = [])
     {
-        self::loadConfig($config, $write, $fallback);
+        self::loadConfig($primary, $write, $fallback);
         self::connect();
     }
 
     /**
      * load the config into the correct properties
      *
-     * @param string[]|int[] $config   settings as assoc array
+     * @param string[]|int[] $primary   settings as assoc array
      * @param string[]|int[] $write    settings as assoc array
      * @param string[]|int[] $fallback settings as assoc array
      *
