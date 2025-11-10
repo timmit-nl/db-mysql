@@ -33,7 +33,7 @@ class Param implements Stringable
     /**
      * value
      *
-     * @var mixed[]|bool|float|int|string|null
+     * @var (bool|float|int|string|null)[]|bool|float|int|string|null
      */
     private mixed $value;
 
