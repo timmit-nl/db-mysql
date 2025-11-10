@@ -314,9 +314,8 @@ class Param implements Stringable
                             case 'string':
                             case 'array':
                             case 'boolean':
-                            case 'int':
+                            case 'integer':
                             case 'double':
-                            case 'float':
                                 $value[$k] = $this->valueToString($v, false);
                                 break;
                         }
@@ -327,7 +326,7 @@ class Param implements Stringable
             case 'boolean':
                 return (string)intval($value);
             default:
-                if (is_scalar($value) || (is_object($value) && ($value instanceof Stringable))) {
+                if (is_scalar($value)) {
                     return (string)$value;
                 }
                 break;
