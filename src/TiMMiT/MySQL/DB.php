@@ -105,11 +105,18 @@ class DB
     protected static \mysqli $mlinkWrite;
 
     /**
-     * The default charset.
+     * The default charset for the connection.
      *
      * @var string
      */
-    protected static string $charset = "utf8mb4";
+    protected static string $charset = 'utf8mb4';
+
+    /**
+     * The default collation for the connection.
+     *
+     * @var null|string
+     */
+    protected static ?string $collation = null;
 
     /**
      * The mysqliReportingExceptionOn.
@@ -226,12 +233,30 @@ class DB
 
 
         if (self::ping()) {
-            mysqli_set_charset(self::$mlink, self::$charset);
+            self::setCharsetOnConnection(self::$mlink);
         }
         if (self::$writeActive && self::ping(true)) {
-            mysqli_set_charset(self::$mlinkWrite, self::$charset);
+            self::setCharsetOnConnection(self::$mlinkWrite);
             self::$wsrepSupport = DB::checkIfWsrep();
             self::setWsrepSyncWait(true);
+        }
+    }
+
+    /**
+     * setCharsetOnConnection
+     *
+     * @param \mysqli $mlink
+     *
+     * @return void
+     */
+    private static function setCharsetOnConnection(\mysqli $mlink): void
+    {
+        try {
+            mysqli_set_charset($mlink, self::$charset);
+            if (!is_null(self::$collation)) {
+                mysqli_query($mlink, "SET collation_connection = '" . self::$collation . "';");
+            }
+        } catch (\mysqli_sql_exception $e) {
         }
     }
 
@@ -312,7 +337,6 @@ class DB
         }
         return $returnValue;
     }
-
 
     /**
      * Update Query function
@@ -663,7 +687,6 @@ class DB
         return null;
     }
 
-
     /**
      * clean variable for DB against SQL injection
      *
@@ -922,7 +945,8 @@ class DB
             }
 
             // Clear the field and index arrays.
-            $cfields = $indices = [];
+            $cfields = [];
+            $indices = [];
 
             // Get all of the field names in the query from between the parentheses.
             preg_match("|\((.*)\)|ms", $qry, $match2);
@@ -1296,7 +1320,7 @@ class DB
      *
      * @return void
      */
-    private static function addToStats(string $queryType = ''): void
+    private static function addToStats(string $queryType): void
     {
         if (!isset(self::$stats[$queryType])) {
             self::$stats[$queryType] = 0;
