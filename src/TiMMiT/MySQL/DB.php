@@ -204,7 +204,7 @@ class DB
             }
             self::$writeActive = false;
 
-            if (count(self::$write) > 0 && self::$config != self::$write && '' !== (self::$write['host'] ?? '')) {
+            if (count(self::$write) > 0 && self::$config !== self::$write && '' !== (self::$write['host'] ?? '')) {
                 $mlink = mysqli_connect((string)self::$write['host'], (string)self::$write['username'], (string)self::$write['password'], (string)self::$write['database'], (int)self::$write['port']);
                 if (false !== $mlink) {
                     self::$mlinkWrite = $mlink;
@@ -299,7 +299,7 @@ class DB
             $result = mysqli_query($mlink, 'SELECT 1;');
             if (false === $result) {
                 $errorno = mysqli_errno($mlink);
-                if ($errorno !== 0) {
+                if (0 !== $errorno) {
                     $returnValue = false;
                 }
             }
@@ -457,7 +457,12 @@ class DB
             //while ($row = mysqli_fetch_assoc($result)) {
             while ($row = $result->fetch_assoc()) {
                 if ('' !== $keyField && isset($row[$keyField])) {
-                    $return[$row[$keyField]] = $row;
+                    if(is_float($row[$keyField])) {
+                        $key = strval($row[$keyField]);
+                    } else {
+                        $key = $row[$keyField];
+                    }
+                    $return[$key] = $row;
                 } else {
                     $return[] = $row;
                 }
@@ -479,10 +484,10 @@ class DB
     public static function selectQueryToCorrectType(string $query, string $keyField = '', bool $writeNode = false): array
     {
         self::addToStats(__FUNCTION__);
-        $return = array();
+        $return = [];
         $result = self::query($query, $writeNode);
         if ($result instanceof \mysqli_result) {
-            $changeFields = array();
+            $changeFields = [];
             $fields = $result->fetch_fields();
             foreach ($fields as $field) {
                 switch ($field->type) {
@@ -610,7 +615,7 @@ class DB
         $primaryKeyFieldResult = self::query("SHOW INDEX FROM " . $table);
         if ($primaryKeyFieldResult instanceof \mysqli_result) {
             $primaryKeyFieldRow = mysqli_fetch_array($primaryKeyFieldResult);
-            if ($primaryKeyFieldRow !== false && isset($primaryKeyFieldRow['Column_name'])) {
+            if (false !== $primaryKeyFieldRow && isset($primaryKeyFieldRow['Column_name'])) {
                 return self::checkForResult("SELECT " . $field . " FROM " . $table . " WHERE " . $primaryKeyFieldRow['Column_name'] . " = " . $primaryKeyFieldID . " AND " . $field . " IS NULL;");
             }
         }
@@ -676,7 +681,7 @@ class DB
     {
         self::addToStats(__FUNCTION__);
         $value = addcslashes(mysqli_real_escape_string(self::$mlink, $value), "%_");
-        if ($key != false) {
+        if (false !== $key) {
             $value = str_replace('\_', "_", $value);
         }
         return $value;
@@ -709,7 +714,7 @@ class DB
     public static function makeId(string $hash = '', int $len = 1, mixed $seed = "", string $add = ''): string
     {
         self::addToStats(__FUNCTION__);
-        switch ($hash):
+        switch ($hash) {
             default:
                 $hash = 'sha1';
                 $length = 32;
@@ -723,7 +728,7 @@ class DB
             case 'md5':
                 $length = 25;
                 break;
-        endswitch;
+        };
         if (0 === $len) {
             $length = 0;
         } else {
@@ -739,7 +744,7 @@ class DB
         $id = base_convert(hash($hash, $seed), 16, 36);
         $erbij = $length - strlen($id);
         if ($erbij > 0) {
-            if ($add == '') {
+            if ('' === $add) {
                 $stap = 10;
                 for ($a = 0; $a < $erbij; $a += $stap) {
                     $erbij2 = min(($erbij - $a), $stap);
@@ -791,7 +796,7 @@ class DB
                         if (!isset($par['operator'])) {
                             $par['operator'] = '';
                         }
-                        if (is_array($par['param']) && ($par['operator'] != 'IN' || $par['operator'] != 'NOT IN')) {
+                        if (is_array($par['param']) && ('IN' !== $par['operator'] || 'NOT IN' !== $par['operator'])) {
                             $where .= '' . self::getWhereFromParam($par['param'], $table) . ' ' . self::clean4DB($divider_operator) . " ";
                         } else {
                             if (!isset($par['value'])) {
@@ -810,7 +815,7 @@ class DB
                                             $values = [];
                                             foreach ($par['value'] as $value) {
                                                 $value = self::clean4DB((string)$value);
-                                                if (isset($par['dont_escape_special_characters']) && $par['dont_escape_special_characters'] == true) {
+                                                if (true === ($par['dont_escape_special_characters'] ?? false)) {
                                                     $value = str_replace('#', "_", $value);
                                                     $value = str_replace('\_', "_", $value);
                                                     $value = str_replace('*', "%", $value);
@@ -826,7 +831,7 @@ class DB
                                     break;
                                 default:
                                     $value = self::clean4DB((string)$par['value']);
-                                    if (isset($par['dont_escape_special_characters']) && $par['dont_escape_special_characters'] == true) {
+                                    if (true === ($par['dont_escape_special_characters'] ?? false)) {
                                         $value = str_replace('#', "_", $value);
                                         $value = str_replace('\_', "_", $value);
                                         $value = str_replace('*', "%", $value);
@@ -843,7 +848,7 @@ class DB
             }
             $where = substr($where, 0, (0 - strlen(" " . self::clean4DB($divider_operator) . " ")));
             $where .= ")";
-            if ($where == ")") {
+            if (")" === $where) {
                 $where = "";
             }
         } else {
@@ -917,7 +922,7 @@ class DB
             // Fetch the table column structure from the database
             $tablefields = self::getColumnsOfTable((string)$table);
 
-            if (count($tablefields) == 0) {
+            if (count($tablefields) === 0) {
                 continue;
             }
 
@@ -972,7 +977,7 @@ class DB
                     $fieldtype = $matches[1];
 
                     // Is actual field type different from the field type in query?
-                    if ($tablefield['Type'] != $fieldtype) {
+                    if ($tablefield['Type'] !== $fieldtype) {
                         // Add a query to change the column type
                         $cqueries[] = "ALTER TABLE `{$table}` CHANGE COLUMN `{$tablefield['Field']}` " . $cfields[strtolower($tablefield['Field'])];
                         $for_update[$table . '.' . $tablefield['Field']] = "Changed type of {$table}.{$tablefield['Field']} from {$tablefield['Type']} to {$fieldtype}";
@@ -1029,7 +1034,7 @@ class DB
                 foreach ($index_ary as $index_name => $index_data) {
                     // Build a create string to compare to the query.
                     $index_string = '';
-                    if ($index_name == 'PRIMARY') {
+                    if ('PRIMARY' === $index_name) {
                         $index_string .= 'PRIMARY ';
                     } elseif ($index_data['unique']) {
                         $index_string .= 'UNIQUE ';
@@ -1162,7 +1167,7 @@ class DB
 
             if ($result instanceof \mysqli_result) {
                 while ($row = $result->fetch_assoc()) {
-                    if ($a == 0) {
+                    if (0 === $a) {
                         fputcsv($fp, array_keys($row), $delimiter, $enclosure, $escape_char);
                     }
                     foreach ($row as $k => $v) {

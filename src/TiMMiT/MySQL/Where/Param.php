@@ -309,9 +309,7 @@ class Param implements Stringable
             case 'array':
                 if (is_array($value)) {
                     foreach ($value as $k => $v) {
-                        if(is_array($v) || is_bool($v) || is_scalar($v) || is_string($v) || is_null($v)){
-                            $value[$k] = $this->valueToString($v, false);
-                        }
+                        $value[$k] = $this->valueToString($v, false);
                     }
                     return "(" . implode(",", $value) . ")";
                 }
@@ -350,7 +348,7 @@ class Param implements Stringable
     /**
      * get the contents of the value
      *
-     * @return mixed[]|bool|float|int|string|null
+     * @return (bool|float|int|string|null)[]|bool|float|int|string|null
      */
     public function getValue()
     {
