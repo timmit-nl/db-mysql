@@ -244,7 +244,7 @@ class Param implements Stringable
     /**
      * valueToString
      *
-     * @param mixed[]|bool|float|int|string|null $value
+     * @param (bool|float|int|string|null)[]|bool|float|int|string|null $value
      * @param bool $changeOperator
      *
      * @return string
