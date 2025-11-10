@@ -869,7 +869,7 @@ class DB
                     }
                 }
             }
-            if (is_array($par) && isset($par['divider_operator'])) {
+            if (is_array($par ?? null) && isset($par['divider_operator'])) {
                 $divider_operator = $par['divider_operator'];
             }
             $where = substr($where, 0, (0 - strlen(" " . self::clean4DB((string)$divider_operator) . " ")));
