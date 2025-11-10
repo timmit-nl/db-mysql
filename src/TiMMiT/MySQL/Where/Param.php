@@ -33,7 +33,7 @@ class Param implements Stringable
     /**
      * value
      *
-     * @var mixed
+     * @var mixed[]|bool|float|int|string|null
      */
     private mixed $value;
 
@@ -348,7 +348,7 @@ class Param implements Stringable
     /**
      * get the contents of the value
      *
-     * @return mixed
+     * @return mixed[]|bool|float|int|string|null
      */
     public function getValue()
     {
