@@ -25,7 +25,7 @@ class DB
      *
      * @var string[]|int[]
      */
-    protected static array $config = [];
+    protected static array $primary = [];
 
     /**
      * The config fallback vars.
@@ -105,11 +105,11 @@ class DB
     protected static \mysqli $mlinkWrite;
 
     /**
-     * The default charset.
+     * The default charset for the connection.
      *
      * @var string
      */
-    protected static string $charset = "utf8mb4";
+    protected static string $charset = 'utf8mb4';
 
     /**
      * The mysqliReportingExceptionOn.
@@ -170,18 +170,32 @@ class DB
     /**
      * Class constructor.
      *
-     * @param string[]|int[] $config   settings as assoc array
+     * @param string[]|int[] $primary  settings as assoc array
      * @param string[]|int[] $write    settings as assoc array
      * @param string[]|int[] $fallback settings as assoc array
      *
      * @return void
      */
-    public function __construct(array $config, array $write = [], array $fallback = [])
+    public function __construct(array $primary, array $write = [], array $fallback = [])
     {
-        self::$config = $config;
+        self::loadConfig($primary, $write, $fallback);
+        self::connect();
+    }
+
+    /**
+     * load the config into the correct properties
+     *
+     * @param string[]|int[] $primary  settings as assoc array
+     * @param string[]|int[] $write    settings as assoc array
+     * @param string[]|int[] $fallback settings as assoc array
+     *
+     * @return void
+     */
+    public static function loadConfig(array $primary, array $write = [], array $fallback = []): void
+    {
+        self::$primary = $primary;
         self::$write = $write;
         self::$fallback = $fallback;
-        self::connect();
     }
 
     /**
@@ -198,13 +212,13 @@ class DB
         mysqli_report(self::$mysqliReportingExceptionOn);
 
         try {
-            $mlink = mysqli_connect((string)self::$config['host'], (string)self::$config['username'], (string)self::$config['password'], (string)self::$config['database'], (int)self::$config['port']);
+            $mlink = mysqli_connect((string)self::$primary['host'], (string)self::$primary['username'], (string)self::$primary['password'], (string)self::$primary['database'], (int)self::$primary['port']);
             if (false !== $mlink) {
                 self::$mlink = $mlink;
             }
             self::$writeActive = false;
 
-            if (count(self::$write) > 0 && self::$config != self::$write && '' !== (self::$write['host'] ?? '')) {
+            if (count(self::$write) > 0 && self::$primary !== self::$write && '' !== (self::$write['host'] ?? '')) {
                 $mlink = mysqli_connect((string)self::$write['host'], (string)self::$write['username'], (string)self::$write['password'], (string)self::$write['database'], (int)self::$write['port']);
                 if (false !== $mlink) {
                     self::$mlinkWrite = $mlink;
@@ -224,14 +238,28 @@ class DB
             }
         }
 
-
         if (self::ping()) {
-            mysqli_set_charset(self::$mlink, self::$charset);
+            self::setCharsetOnConnection(self::$mlink);
         }
         if (self::$writeActive && self::ping(true)) {
-            mysqli_set_charset(self::$mlinkWrite, self::$charset);
+            self::setCharsetOnConnection(self::$mlinkWrite);
             self::$wsrepSupport = DB::checkIfWsrep();
             self::setWsrepSyncWait(true);
+        }
+    }
+
+    /**
+     * setCharsetOnConnection
+     *
+     * @param \mysqli $mlink
+     *
+     * @return void
+     */
+    private static function setCharsetOnConnection(\mysqli $mlink): void
+    {
+        try {
+            mysqli_set_charset($mlink, self::$charset);
+        } catch (\mysqli_sql_exception $e) {
         }
     }
 
@@ -313,7 +341,6 @@ class DB
         return $returnValue;
     }
 
-
     /**
      * Update Query function
      *
@@ -349,6 +376,7 @@ class DB
             $error = mysqli_error($mlink);
             switch ($errorno) {
                 case 1213:
+                case 1020:
                     if ($count < self::$max_deadlock_count) {
                         $count++;
                         usleep((int)($count * round(100000, 1000000) * self::$sleep_deadlock_multiplier));
@@ -358,6 +386,7 @@ class DB
                     }
                     break;
                 case 2006:
+                case 4031:
                 case 1047:
                 case 1156:
                 case 1205:
@@ -663,7 +692,6 @@ class DB
         return null;
     }
 
-
     /**
      * clean variable for DB against SQL injection
      *
@@ -935,7 +963,8 @@ class DB
             }
 
             // Clear the field and index arrays.
-            $cfields = $indices = [];
+            $cfields = [];
+            $indices = [];
 
             // Get all of the field names in the query from between the parentheses.
             preg_match("|\((.*)\)|ms", $qry, $match2);
@@ -948,7 +977,7 @@ class DB
             foreach ($flds as $fld) {
                 // Extract the field name.
                 preg_match("|^([^ ]*)|", trim($fld), $fvals);
-                $fieldname = trim($fvals[1] ?? '', '`');
+                $fieldname = trim(($fvals[1] ?? ''), '`');
 
                 // Verify the found field name.
                 $validfield = true;
@@ -995,10 +1024,11 @@ class DB
                     // todo: Remove this?
                     if (1 === preg_match("| DEFAULT '(.*?)'|i", $cfields[strtolower($tablefield['Field'])], $matches)) {
                         $default_value = $matches[1];
-                        if ($tablefield['Default'] != $default_value) {
+                        $currentDefaultValue = trim(($tablefield['Default'] ?? ''), "'");
+                        if ($currentDefaultValue !== $default_value) {
                             // Add a query to change the column's default value
                             $cqueries[] = "ALTER TABLE `{$table}` ALTER COLUMN `{$tablefield['Field']}` SET DEFAULT '{$default_value}'";
-                            $for_update[$table . '.' . $tablefield['Field']] = "Changed default value of {$table}.{$tablefield['Field']} from {$tablefield['Default']} to {$default_value}";
+                            $for_update[$table . '.' . $tablefield['Field']] = "Changed default value of {$table}.{$tablefield['Field']} from {$currentDefaultValue} to {$default_value}";
                         }
                     }
 
@@ -1308,7 +1338,7 @@ class DB
      *
      * @return void
      */
-    private static function addToStats(string $queryType = ''): void
+    private static function addToStats(string $queryType): void
     {
         if (!isset(self::$stats[$queryType])) {
             self::$stats[$queryType] = 0;
