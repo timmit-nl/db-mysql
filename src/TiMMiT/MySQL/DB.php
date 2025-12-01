@@ -376,6 +376,7 @@ class DB
             $error = mysqli_error($mlink);
             switch ($errorno) {
                 case 1213:
+                case 1020:
                     if ($count < self::$max_deadlock_count) {
                         $count++;
                         usleep((int)($count * round(100000, 1000000) * self::$sleep_deadlock_multiplier));
