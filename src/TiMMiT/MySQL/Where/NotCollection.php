@@ -13,12 +13,8 @@ declare(strict_types=1);
 
 namespace TiMMiT\MySQL\Where;
 
-use Iterator;
-
 /**
  * Where Not Collection
- *
- * @implements \Iterator<int, Param|Collection>
  */
 class NotCollection extends Collection
 {
