@@ -340,7 +340,7 @@ class ParamTest extends BaseTestCase
         $valueResult = $param->getValue();
         $operatorResult = $param->getOperator();
 
-        $this->assertSame($valueResult, '^abc', 'Param object does not correctly set value for regexMatch()');
+        $this->assertSame($valueResult, '/^abc/', 'Param object does not correctly set value for regexMatch()');
         $this->assertSame($operatorResult, 'REGEXP', 'Param object does not correctly set operator REGEXP for regexMatch()');
     }
 
