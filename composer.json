@@ -25,7 +25,8 @@
 		"phpstan/phpstan": "^1.4.8",
 		"phpstan/phpstan-strict-rules": "^1.1",
 		"phpstan/phpstan-deprecation-rules": "^1.0",
-		"timmit/php-docblock-checker": "^1.11"
+		"timmit/php-docblock-checker": "^1.11",
+		"phpunit/phpunit": "10.5.62"
 	},
 	"autoload": {
 		"psr-4": {
