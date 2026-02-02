@@ -32,6 +32,8 @@ class ParamTest extends BaseTestCase
         'notInArray',
         'inQuery',
         'notInQuery',
+        'regexMatch',
+        'betweenRange',
         'valueToString',
         'getFieldName',
         'getOperator',
@@ -325,6 +327,38 @@ class ParamTest extends BaseTestCase
 
         $this->assertSame($valueResult, 'SELECT id FROM users', 'Param object does not correctly set value for notInQuery()');
         $this->assertSame($operatorResult, 'NOT IN QUERY', 'Param object does not correctly set operator for notInQuery()');
+    }
+
+    /**
+     * Test the regexMatch() method.
+     */
+    public function testRegexMatch()
+    {
+        $param = new Param('group_id');
+        $param->regexMatch('^abc');
+
+        $valueResult = $param->getValue();
+        $operatorResult = $param->getOperator();
+
+        $this->assertSame($valueResult, '^abc', 'Param object does not correctly set value for regexMatch()');
+        $this->assertSame($operatorResult, 'REGEXP', 'Param object does not correctly set operator REGEXP for regexMatch()');
+    }
+
+    /**
+     * Test the betweenRange() method.
+     */
+    public function testBetweenRange()
+    {
+        $param = new Param('group_id');
+        $param->betweenRange('a', 'z');
+
+        $valueResult = $param->getValue();
+        $value2Result = $this->getPrivateProperty($param, 'value2');
+        $operatorResult = $param->getOperator();
+
+        $this->assertSame($valueResult, 'a', 'Param object does not correctly set value for betweenRange()');
+        $this->assertSame($value2Result, 'z', 'Param object does not correctly set value2 for betweenRange()');
+        $this->assertSame($operatorResult, 'BETWEEN', 'Param object does not correctly set operator BETWEEN for betweenRange()');
     }
 
     /**
