@@ -38,6 +38,13 @@ class Param implements Stringable
     private mixed $value;
 
     /**
+     * value2
+     *
+     * @var mixed
+     */
+    private mixed $value2 = null;
+
+    /**
      * operator
      *
      * @var string
@@ -242,6 +249,36 @@ class Param implements Stringable
     }
 
     /**
+     * regex match
+     *
+     * @param string $value
+     *
+     * @return Param
+     */
+    public function regexMatch(string $value): Param
+    {
+        $this->value = '/' . trim($value, '/') . '/';
+        $this->operator = 'REGEXP';
+        return $this;
+    }
+
+    /**
+     * regex match
+     *
+     * @param string $value
+     * @param string $value2
+     *
+     * @return Param
+     */
+    public function betweenRange(string $value, string $value2): Param
+    {
+        $this->value = $value;
+        $this->value2 = $value2;
+        $this->operator = 'BETWEEN';
+        return $this;
+    }
+
+    /**
      * valueToString
      *
      * @param mixed $value
@@ -373,6 +410,9 @@ class Param implements Stringable
             $returnTxt .= " " . DB::clean4DB($this->operator);
         }
         $returnTxt .= " " . $value;
+        if (!is_null($this->value2)) {
+            $returnTxt .= " AND " . $this->valueToString($this->value2, true);
+        }
         return $returnTxt;
     }
 }
