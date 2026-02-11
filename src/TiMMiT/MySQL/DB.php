@@ -795,92 +795,6 @@ class DB
     }
 
     /**
-     * Make where statement from parameters
-     *
-     * @param mixed[]|null $param paramater or parameters as assoc array
-     * @param string $table
-     *
-     * @return string
-     *
-     * @deprecated 10.0 Use DB\Where\Collection instead of array of params and getWhereFromCollection instead of getWhereFromParam
-     */
-    public static function getWhereFromParam(?array $param = null, string $table = ''): string
-    {
-        self::addToStats(__FUNCTION__);
-        if (is_array($param) && count($param) > 0) {
-            $where = "(";
-            $divider_operator = 'AND';
-            foreach ($param as $par) {
-                if (isset($par['divider_operator'])) {
-                    $divider_operator = $par['divider_operator'];
-                }
-                if (isset($par['param'])) {
-                    if (!empty($par['param'])) {
-                        if (!isset($par['operator'])) {
-                            $par['operator'] = '';
-                        }
-                        if (is_array($par['param']) && ($par['operator'] != 'IN' || $par['operator'] != 'NOT IN')) {
-                            $where .= '' . self::getWhereFromParam($par['param'], $table) . ' ' . self::clean4DB($divider_operator) . " ";
-                        } else {
-                            if (!isset($par['value'])) {
-                                $par['value'] = '';
-                            }
-                            if ('' !== $table) {
-                                $where .= "`" . $table . "`.";
-                            }
-                            $par['operator'] = strtoupper($par['operator']);
-                            switch ($par['operator']) {
-                                case 'IN':
-                                case 'NOT IN':
-                                    $value_txt = '';
-                                    if (is_array($par['value'])) {
-                                        if (count($par['value']) > 0) {
-                                            $values = [];
-                                            foreach ($par['value'] as $value) {
-                                                $value = self::clean4DB((string)$value);
-                                                if (isset($par['dont_escape_special_characters']) && $par['dont_escape_special_characters'] == true) {
-                                                    $value = str_replace('#', "_", $value);
-                                                    $value = str_replace('\_', "_", $value);
-                                                    $value = str_replace('*', "%", $value);
-                                                }
-                                                $values[] = $value;
-                                            }
-                                            $value_txt = "'" . implode("','", $values) . "'";
-                                        }
-                                    } else {
-                                        $value_txt = $par['value'];
-                                    }
-                                    $where .= "`" . self::clean4DB($par['param'], true) . "` " . $par['operator'] . " (" . $value_txt . ") " . self::clean4DB($divider_operator) . " ";
-                                    break;
-                                default:
-                                    $value = self::clean4DB((string)$par['value']);
-                                    if (isset($par['dont_escape_special_characters']) && $par['dont_escape_special_characters'] == true) {
-                                        $value = str_replace('#', "_", $value);
-                                        $value = str_replace('\_', "_", $value);
-                                        $value = str_replace('*', "%", $value);
-                                    }
-                                    $where .= "`" . self::clean4DB($par['param'], true) . "` " . self::clean4DB($par['operator']) . " '" . $value . "' " . self::clean4DB($divider_operator) . " ";
-                                    break;
-                            }
-                        }
-                    }
-                }
-            }
-            if (isset($par['divider_operator'])) {
-                $divider_operator = $par['divider_operator'];
-            }
-            $where = substr($where, 0, (0 - strlen(" " . self::clean4DB($divider_operator) . " ")));
-            $where .= ")";
-            if ($where == ")") {
-                $where = "";
-            }
-        } else {
-            $where = "(1=1)";
-        }
-        return $where;
-    }
-
-    /**
      * Make where statement from Collection
      *
      * @param Collection $collection paramater
@@ -1132,7 +1046,7 @@ class DB
      *
      * @param string $table       table
      * @param string[] $fields      if empty=* else array of fields
-     * @param null|Collection $Collection  params array for where
+     * @param null|Collection $Collection  Collection object for where
      * @param string|null $file        path to file, null to tempfile
      * @param bool $return      true return csv else return rows of csv
      * @param string $delimiter   delimiter of csv default ;
