@@ -757,7 +757,8 @@ class DB
         } else {
             $length = max($len, $length);
         }
-        if (!empty($seed)) {
+        $hasSeed = (!is_null($seed) && '' !== $seed && false !== $seed && 0 !== $seed && '0' !== $seed && (!is_array($seed) || count($seed) > 0));
+        if ($hasSeed) {
             if (!is_string($seed)) {
                 $seed = serialize($seed);
             }
