@@ -1,7 +1,14 @@
 {
     "name": "timmit/db-mysql",
     "description": "A simple DB layer in PHP for using MySQL(i)",
-    "keywords": ["DB", "MySQL", "MySQLi", "database", "DB layer", "database layer"],
+    "keywords": [
+        "DB",
+        "MySQL",
+        "MySQLi",
+        "database",
+        "DB layer",
+        "database layer"
+    ],
     "license": "MIT",
     "homepage": "http://www.TiMMiT.nl/",
     "authors": [
@@ -18,11 +25,17 @@
         "phpstan/phpstan": "^1.4.8",
         "phpstan/phpstan-strict-rules": "^1.1",
         "phpstan/phpstan-deprecation-rules": "^1.0",
-        "timmit/php-docblock-checker": "^1.11"
+        "timmit/php-docblock-checker": "^1.11",
+        "phpunit/phpunit": "10.5.62"
     },
     "autoload": {
         "psr-4": {
             "TiMMiT\\MySQL\\": "src/TiMMiT/MySQL"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "test\\php\\phpunit\\": "test/php/phpunit"
         }
     }
 }
