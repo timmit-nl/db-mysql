@@ -16,7 +16,7 @@ namespace TiMMiT\MySQL\Where;
 use Iterator;
 use Countable;
 use Stringable;
-use TiMMiT\MySQL\DB;
+
 use TiMMiT\MySQL\DBException;
 
 /**
