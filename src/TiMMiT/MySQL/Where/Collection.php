@@ -282,8 +282,8 @@ class Collection implements Iterator, Countable, Stringable
      */
     public function __toString(): string
     {
-        $array = $this->getArrayAsStrings();
-        $count = count($array);
+        $itemsArray = $this->getArrayAsStrings();
+        $count = count($itemsArray);
         if (0 === $count) {
             if ($this->ifEmptyThenShowAll) {
                 return "(1=1)";
@@ -293,9 +293,9 @@ class Collection implements Iterator, Countable, Stringable
         } else {
             switch ($this->operator) {
                 case 'NOT':
-                    return 'NOT (' . implode(' AND ', $array) . ')';
+                    return 'NOT (' . implode(' AND ', $itemsArray) . ')';
             }
-            return '(' . implode(' ' . $this->operator . ' ', $array) . ')';
+            return '(' . implode(' ' . $this->operator . ' ', $itemsArray) . ')';
         }
     }
 }
