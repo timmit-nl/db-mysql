@@ -284,18 +284,18 @@ class Collection implements Iterator, Countable, Stringable
     {
         $array = $this->getArrayAsStrings();
         $count = count($array);
-        if (($this->ifEmptyThenShowAll == true) && (0 === $count)) {
-            return "(1=1)";
-        } else {
-            if (0 === $count) {
-                return '';
+        if (0 === $count) {
+            if ($this->ifEmptyThenShowAll) {
+                return "(1=1)";
             } else {
-                switch ($this->operator) {
-                    case 'NOT':
-                        return 'NOT (' . implode(' AND ', $array) . ')';
-                }
-                return '(' . implode(' ' . $this->operator . ' ', $array) . ')';
+                return '';
             }
+        } else {
+            switch ($this->operator) {
+                case 'NOT':
+                    return 'NOT (' . implode(' AND ', $array) . ')';
+            }
+            return '(' . implode(' ' . $this->operator . ' ', $array) . ')';
         }
     }
 }
