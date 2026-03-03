@@ -375,8 +375,8 @@ class DB
             $errorno = mysqli_errno($mlink);
             $error = mysqli_error($mlink);
             switch ($errorno) {
-                case 1213:
                 case 1020:
+                case 1213:
                     if ($count < self::$max_deadlock_count) {
                         $count++;
                         usleep((int)($count * round(100000, 1000000) * self::$sleep_deadlock_multiplier));
@@ -385,11 +385,12 @@ class DB
                         throw new DBException("Query Failed:<ul><li>errorno=" . $errorno . "</li><li>failure_count=" . $count . " of max=" . self::$max_deadlock_count . " </li><li>error=" . $error . "</li><li>query=" . $query . "</li></ul>", $errorno);
                     }
                     break;
-                case 2006:
-                case 4031:
                 case 1047:
                 case 1156:
+                case 1180:
                 case 1205:
+                case 2006:
+                case 4031:
                     if ($count >= self::$max_goneaway_count && $write) {
                         $write = false;
                         $count = 0;
