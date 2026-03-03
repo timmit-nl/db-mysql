@@ -284,7 +284,7 @@ class Collection implements Iterator, Countable, Stringable
     {
         $array = $this->getArrayAsStrings();
         $count = count($array);
-        if (($this->ifEmptyThenShowAll == true) && (0 === $count)) {
+        if ((true === $this->ifEmptyThenShowAll) && (0 === $count)) {
             return "(1=1)";
         } else {
             if (0 === $count) {
