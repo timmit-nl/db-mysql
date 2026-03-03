@@ -705,7 +705,7 @@ class DB
     {
         self::addToStats(__FUNCTION__);
         $value = addcslashes(mysqli_real_escape_string(self::$mlink, $value), "%_");
-        if ($key != false) {
+        if (false !== $key) {
             $value = str_replace('\_', "_", $value);
         }
         return $value;
