@@ -286,7 +286,7 @@ class Collection implements Iterator, Countable, Stringable
         $count = count($itemsArray);
         if (0 === $count) {
             if ($this->ifEmptyThenShowAll) {
-                return "(1=1)";
+                return '(1=1)';
             } else {
                 return '';
             }
