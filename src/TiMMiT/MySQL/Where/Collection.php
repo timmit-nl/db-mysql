@@ -259,20 +259,43 @@ class Collection implements Iterator, Countable, Stringable
     }
 
     /**
+     * Get the array of the collection as a string.
+     *
+     * @return string[]
+     */
+    private function getArrayAsStrings(): array
+    {
+        $array = [];
+        foreach ($this->array as $item) {
+            $itemTxt = (string)$item;
+            if ('' !== $itemTxt) {
+                $array[] = $itemTxt;
+            }
+        }
+        return $array;
+    }
+
+    /**
      * @inheritDoc
      *
      * @return string
      */
     public function __toString(): string
     {
-        if (($this->ifEmptyThenShowAll == true) && ($this->count() === 0)) {
+        $array = $this->getArrayAsStrings();
+        $count = count($array);
+        if (($this->ifEmptyThenShowAll == true) && (0 === $count)) {
             return "(1=1)";
         } else {
-            switch ($this->operator) {
-                case 'NOT':
-                    return 'NOT (' . implode(' AND ', $this->array) . ')';
+            if (0 === $count) {
+                return '';
+            } else {
+                switch ($this->operator) {
+                    case 'NOT':
+                        return 'NOT (' . implode(' AND ', $array) . ')';
+                }
+                return '(' . implode(' ' . $this->operator . ' ', $array) . ')';
             }
-            return '(' . implode(' ' . $this->operator . ' ', $this->array) . ')';
         }
     }
 }
