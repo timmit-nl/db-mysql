@@ -137,6 +137,36 @@ class Param implements Stringable
     }
 
     /**
+     * isFieldInTable
+     *
+     * @param string $table
+     * @param string $field
+     *
+     * @return Param
+     */
+    public function isFieldInTable(string $table, string $field): Param
+    {
+        $this->value = '`' . DB::clean4DB($table, true) . '`.`' . DB::clean4DB($field, true) . '`';
+        $this->operator = 'IS FIELD IN TABLE';
+        return $this;
+    }
+
+    /**
+     * isNotFieldInTable
+     *
+     * @param string $table
+     * @param string $field
+     *
+     * @return Param
+     */
+    public function isNotFieldInTable(string $table, string $field): Param
+    {
+        $this->value = '`' . DB::clean4DB($table, true) . '`.`' . DB::clean4DB($field, true) . '`';
+        $this->operator = 'IS NOT FIELD IN TABLE';
+        return $this;
+    }
+
+    /**
      * greaterOrEqual >=
      *
      * @param mixed $value
@@ -314,7 +344,10 @@ class Param implements Stringable
                     switch (substr($this->operator, -5)) {
                         case 'QUERY':
                             $this->cleanOperator = substr($this->operator, 0, -6);
-                            return "(" . rtrim($value, ";") . ")";
+                            return '(' . rtrim($value, ';') . ')';
+                        case 'TABLE':
+                            $this->cleanOperator = substr($this->operator, 0, -15);
+                            return $value;
                         default:
                             $value = DB::clean4DB($value);
                             break;
