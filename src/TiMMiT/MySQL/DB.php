@@ -1099,7 +1099,14 @@ class DB
                 $current_charset = null;
                 $current_collation = null;
                 $createRows = self::selectQuery("SHOW CREATE TABLE `" . $table . "`");
-                $createTable = ($createRows[0] ?? [])['Create Table'] ?? '';
+                $firstCreateRow = [];
+                if (isset($createRows[0])) {
+                    $firstCreateRow = $createRows[0];
+                }
+                $createTable = '';
+                if (isset($firstCreateRow['Create Table'])) {
+                    $createTable = $firstCreateRow['Create Table'];
+                }
                 if ('' !== $createTable) {
                     if (preg_match('/DEFAULT\s+CHARSET\s*=\s*(\w+)/i', $createTable, $m)) {
                         $current_charset = $m[1];
@@ -1193,7 +1200,7 @@ class DB
             foreach ($fields as $field) {
                 $fieldsArray[] = self::clean4DB($field, true);
             }
-            $fieldsTxt = implode(", ", $fieldsArray);
+            $fieldsTxt = implode(', ', $fieldsArray);
         }
 
         if (is_null($Collection)) {
@@ -1345,7 +1352,7 @@ class DB
     public static function checkIfWsrep(): bool
     {
         self::addToStats(__FUNCTION__);
-        return self::checkForResult('SHOW SESSION STATUS LIKE 'wsrep_cluster_status';');
+        return self::checkForResult("SHOW SESSION STATUS LIKE 'wsrep_cluster_status';");
     }
 
     /**
