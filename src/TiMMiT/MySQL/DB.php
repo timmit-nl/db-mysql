@@ -618,7 +618,7 @@ class DB
     public static function checkIfColumnExistInTable(string $table, string $column): bool
     {
         self::addToStats(__FUNCTION__);
-        return self::checkForResult('SHOW COLUMNS FROM `' . $table . '` LIKE ' . $column . ';');
+        return self::checkForResult("SHOW COLUMNS FROM `" . $table . "` LIKE '" . $column . "';");
     }
 
     /**
