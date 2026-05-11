@@ -341,7 +341,7 @@ class DB
             $result = mysqli_query($mlink, 'SELECT 1;');
             if (false === $result) {
                 $errorno = mysqli_errno($mlink);
-                if ($errorno !== 0) {
+                if (0 !== $errorno) {
                     $returnValue = false;
                 }
             }
@@ -523,10 +523,10 @@ class DB
     public static function selectQueryToCorrectType(string $query, string $keyField = '', bool $writeNode = false): array
     {
         self::addToStats(__FUNCTION__);
-        $return = array();
+        $return = [];
         $result = self::query($query, $writeNode);
         if ($result instanceof \mysqli_result) {
-            $changeFields = array();
+            $changeFields = [];
             $fields = $result->fetch_fields();
             foreach ($fields as $field) {
                 switch ($field->type) {
@@ -559,7 +559,7 @@ class DB
                                 settype($row[$field], $type);
                                 break;
                             case 'datetime':
-                                if ($row[$field] == '0000-00-00 00:00:00') {
+                                if ('0000-00-00 00:00:00' === $row[$field]) {
                                     $row[$field] = null;
                                 } else {
                                     $row[$field] = Result\DateTime::createFromFormatNull('Y-m-d H:i:s', (string)$row[$field]);
@@ -604,7 +604,7 @@ class DB
     public static function checkTableExist(string $table): bool
     {
         self::addToStats(__FUNCTION__);
-        return self::checkForResult("SHOW TABLES LIKE '" . $table . "';");
+        return self::checkForResult('SHOW TABLES LIKE ' . $table . ';');
     }
 
     /**
@@ -618,7 +618,7 @@ class DB
     public static function checkIfColumnExistInTable(string $table, string $column): bool
     {
         self::addToStats(__FUNCTION__);
-        return self::checkForResult("SHOW COLUMNS FROM `" . $table . "` LIKE '" . $column . "';");
+        return self::checkForResult('SHOW COLUMNS FROM `' . $table . '` LIKE ' . $column . ';');
     }
 
     /**
@@ -651,11 +651,11 @@ class DB
     public static function checkIsNull(string $table, string $field, string $primaryKeyFieldID): bool
     {
         self::addToStats(__FUNCTION__);
-        $primaryKeyFieldResult = self::query("SHOW INDEX FROM " . $table);
+        $primaryKeyFieldResult = self::query('SHOW INDEX FROM ' . $table);
         if ($primaryKeyFieldResult instanceof \mysqli_result) {
             $primaryKeyFieldRow = mysqli_fetch_array($primaryKeyFieldResult);
-            if ($primaryKeyFieldRow !== false && isset($primaryKeyFieldRow['Column_name'])) {
-                return self::checkForResult("SELECT " . $field . " FROM " . $table . " WHERE " . $primaryKeyFieldRow['Column_name'] . " = " . $primaryKeyFieldID . " AND " . $field . " IS NULL;");
+            if (false !== $primaryKeyFieldRow && isset($primaryKeyFieldRow['Column_name'])) {
+                return self::checkForResult('SELECT ' . $field . ' FROM ' . $table . ' WHERE ' . $primaryKeyFieldRow['Column_name'] . ' = ' . $primaryKeyFieldID . ' AND ' . $field . ' IS NULL;');
             }
         }
         return false;
@@ -673,12 +673,12 @@ class DB
     {
         self::addToStats(__FUNCTION__);
 
-        $prefix = "";
+        $prefix = '';
         if ($full) {
-            $prefix = "FULL";
+            $prefix = 'FULL';
         }
 
-        return self::selectQuery("SHOW " . $prefix . " COLUMNS FROM `" . $table . "`;");
+        return self::selectQuery('SHOW ' . $prefix . ' COLUMNS FROM `' . $table . '`;');
     }
 
     /**
@@ -697,7 +697,7 @@ class DB
         foreach ($columns as $columnItem) {
             /** @var string[] */
             $columnItem = $columnItem;
-            if ($columnItem['Field'] == $column) {
+            if ($columnItem['Field'] === $column) {
                 if (isset($columnItem['Collation'])) {
                     return $columnItem['Collation'];
                 }
@@ -719,7 +719,7 @@ class DB
     {
         self::addToStats(__FUNCTION__);
         $value = addcslashes(mysqli_real_escape_string(self::$mlink, $value), "%_");
-        if ($key != false) {
+        if ($key !== false) {
             $value = str_replace('\_', "_", $value);
         }
         return $value;
@@ -783,7 +783,7 @@ class DB
         $id = base_convert(hash($hash, $seed), 16, 36);
         $erbij = $length - strlen($id);
         if ($erbij > 0) {
-            if ($add == '') {
+            if ('' === $add) {
                 $stap = 10;
                 for ($a = 0; $a < $erbij; $a += $stap) {
                     $erbij2 = min(($erbij - $a), $stap);
@@ -872,10 +872,10 @@ class DB
                 continue;
             }
 
-            // Fetch the table column structure from the database
-            $tablefields = self::getColumnsOfTable((string)$table);
+            // Fetch the table column structure from the database (full to get Collation for column charset/collation comparison)
+            $tablefields = self::getColumnsOfTable((string)$table, true);
 
-            if (count($tablefields) == 0) {
+            if (0 === count($tablefields)) {
                 continue;
             }
 
@@ -929,12 +929,33 @@ class DB
                     //echo "<hr/><pre>\n".print_r(array("|".$tablefield['Field']." ([^ ]*( unsigned)*( zerofill)?)|i", $cfields[strtolower($tablefield['Field'])],$matches), true)."</pre><hr/>";
 
                     $fieldtype = $matches[1];
+                    $columnDef = $cfields[strtolower($tablefield['Field'])];
 
-                    // Is actual field type different from the field type in query?
-                    if ($tablefield['Type'] != $fieldtype) {
-                        // Add a query to change the column type
-                        $cqueries[] = "ALTER TABLE `{$table}` CHANGE COLUMN `{$tablefield['Field']}` " . $cfields[strtolower($tablefield['Field'])];
-                        $for_update[$table . '.' . $tablefield['Field']] = "Changed type of {$table}.{$tablefield['Field']} from {$tablefield['Type']} to {$fieldtype}";
+                    // Column-level charset/collation: parse COLLATE from query column definition (column def uses "COLLATE name", no equals)
+                    $desired_col_collation = null;
+                    if (preg_match('/COLLATE\s+(\w+)/i', $columnDef, $colCollMatch)) {
+                        $desired_col_collation = $colCollMatch[1];
+                    }
+                    $current_col_collation = null;
+                    if (isset($tablefield['Collation'])) {
+                        $current_col_collation = (string)$tablefield['Collation'];
+                    }
+                    $collation_differs = false;
+                    if (!is_null($desired_col_collation) && !is_null($current_col_collation)) {
+                        if (strtolower($desired_col_collation) !== strtolower($current_col_collation)) {
+                            $collation_differs = true;
+                        }
+                    }
+
+                    // Is actual field type different from the field type in query, or column collation different?
+                    if ($tablefield['Type'] !== $fieldtype || $collation_differs) {
+                        $cqueries[] = "ALTER TABLE `{$table}` CHANGE COLUMN `{$tablefield['Field']}` " . $columnDef;
+                        if ($tablefield['Type'] !== $fieldtype) {
+                            $for_update[$table . '.' . $tablefield['Field']] = "Changed type of {$table}.{$tablefield['Field']} from {$tablefield['Type']} to {$fieldtype}";
+                        }
+                        if ($collation_differs) {
+                            $for_update[$table . '.' . $tablefield['Field'] . '.collation'] = 'Changed collation to ' . $desired_col_collation;
+                        }
                     }
 
                     // Get the default value from the array
@@ -988,7 +1009,10 @@ class DB
                     /** @var string[] */
                     $columns = ['fieldname' => $tableindex['Column_name'], 'subpart' => $tableindex['Sub_part']];
                     $index_ary[$keyname]['columns'][] = $columns;
-                    $index_ary[$keyname]['unique'] = ($tableindex['Non_unique'] == 0) ? true : false;
+                    $index_ary[$keyname]['unique'] = false;
+                    if (0 == $tableindex['Non_unique']) {
+                        $index_ary[$keyname]['unique'] = true;
+                    }
                     $index_ary[$keyname]['index_type'] = $tableindex['Index_type'];
                 }
 
@@ -996,7 +1020,7 @@ class DB
                 foreach ($index_ary as $index_name => $index_data) {
                     // Build a create string to compare to the query.
                     $index_string = '';
-                    if ($index_name == 'PRIMARY') {
+                    if ('PRIMARY' === $index_name) {
                         $index_string .= 'PRIMARY ';
                     } elseif ($index_data['unique']) {
                         $index_string .= 'UNIQUE ';
@@ -1006,20 +1030,20 @@ class DB
                         $index_string .= 'FULLTEXT ';
                     }
                     $index_string .= 'KEY ';
-                    if ($index_name != 'PRIMARY') {
+                    if ('PRIMARY' !== $index_name) {
                         $index_string .= "`" . $index_name . "`";
                     }
                     $index_columns = '';
 
                     // For each column in the index.
                     foreach ($index_data['columns'] as $column_data) {
-                        if ($index_columns != '') {
+                        if ('' !== $index_columns) {
                             $index_columns .= ',';
                         }
 
                         // Add the field to the column list string.
                         $index_columns .= "`" . $column_data['fieldname'] . "`";
-                        if ($column_data['subpart'] != '') {
+                        if ('' !== $column_data['subpart']) {
                             $index_columns .= '(' . $column_data['subpart'] . ')';
                         }
                     }
@@ -1060,6 +1084,41 @@ class DB
                 // Push the query line into $cqueries that adds the index to that table.
                 $cqueries[] = $addIndex['query'];
                 $for_update[] = 'Added index ' . $table . ' ' . $index;
+            }
+
+            // Charset and collation: parse from CREATE TABLE and compare with existing table.
+            $desired_charset = null;
+            $desired_collation = null;
+            if (preg_match('/DEFAULT\s+CHARSET\s*=\s*(\w+)/i', $qry, $m)) {
+                $desired_charset = $m[1];
+            }
+            if (preg_match_all('/COLLATE\s*=\s*(\w+)/i', $qry, $m) && !empty($m[1])) {
+                $desired_collation = end($m[1]);
+            }
+            if (!is_null($desired_charset) && !is_null($desired_collation)) {
+                $current_charset = null;
+                $current_collation = null;
+                $createRows = self::selectQuery("SHOW CREATE TABLE `" . $table . "`");
+                $createTable = ($createRows[0] ?? [])['Create Table'] ?? '';
+                if ('' !== $createTable) {
+                    if (preg_match('/DEFAULT\s+CHARSET\s*=\s*(\w+)/i', $createTable, $m)) {
+                        $current_charset = $m[1];
+                    }
+                    if (preg_match_all('/COLLATE\s*=\s*(\w+)/i', $createTable, $m) && !empty($m[1])) {
+                        $current_collation = end($m[1]);
+                    }
+                }
+                $charset_changed = strtolower((string)$desired_charset) !== strtolower((string)$current_charset);
+                $collation_changed = strtolower((string)$desired_collation) !== strtolower((string)$current_collation);
+                if ($charset_changed || $collation_changed) {
+                    $cqueries[] = "ALTER TABLE `{$table}` CONVERT TO CHARACTER SET {$desired_charset} COLLATE {$desired_collation}";
+                    if ($charset_changed) {
+                        $for_update[$table . '.charset'] = 'Changed charset to ' . $desired_charset;
+                    }
+                    if ($collation_changed) {
+                        $for_update[$table . '.collation'] = 'Changed collation to ' . $desired_collation;
+                    }
+                }
             }
 
             // Remove the original table creation query from processing.
@@ -1138,12 +1197,12 @@ class DB
         }
 
         if (is_null($Collection)) {
-            $where = "(1=1)";
+            $where = '(1=1)';
         } else {
             $where = self::getWhereFromCollection($Collection);
         }
 
-        $totalResult = DB::selectQuery("SELECT count(*) as `total` FROM " . self::clean4DB($table, true) . " WHERE " . $where . ";");
+        $totalResult = DB::selectQuery('SELECT count(*) as `total` FROM ' . self::clean4DB($table, true) . ' WHERE ' . $where . ';');
 
         $total = 0;
         if (is_array($totalResult[0] ?? null) && is_scalar($totalResult[0]['total'] ?? null)) {
@@ -1153,7 +1212,7 @@ class DB
         $flushEvery = 5000;
         $gcEvery = 50000;
 
-        $query = "SELECT " . $fieldsTxt . " FROM " . self::clean4DB($table, true) . " WHERE " . $where;
+        $query = 'SELECT ' . $fieldsTxt . ' FROM ' . self::clean4DB($table, true) . ' WHERE ' . $where;
 
         if (is_null($file)) {
             $filename = tempnam(sys_get_temp_dir(), 'CSV');
@@ -1177,7 +1236,7 @@ class DB
 
             if ($result instanceof \mysqli_result) {
                 while ($row = $result->fetch_assoc()) {
-                    if ($a == 0) {
+                    if (0 === $a) {
                         fputcsv($fp, array_keys($row), $delimiter, $enclosure, $escape_char);
                     }
                     foreach ($row as $k => $v) {
@@ -1220,16 +1279,15 @@ class DB
      */
     public static function startTransaction(bool $readOnly = false, bool $writeNode = true): void
     {
-
         if (!$readOnly) {
-            self::executeQuery("SET autocommit=0;", $writeNode);
-            self::executeQuery("SET unique_checks=0;", $writeNode);
-            self::executeQuery("SET foreign_key_checks=0", $writeNode);
-            $suffix = "";
+            self::executeQuery('SET autocommit=0;', $writeNode);
+            self::executeQuery('SET unique_checks=0;', $writeNode);
+            self::executeQuery('SET foreign_key_checks=0', $writeNode);
+            $suffix = '';
         } else {
-            $suffix = "READ ONLY";
+            $suffix = 'READ ONLY';
         }
-        self::executeQuery("START TRANSACTION " . $suffix . ";", $writeNode);
+        self::executeQuery('START TRANSACTION ' . $suffix . ';', $writeNode);
     }
 
     /**
@@ -1241,7 +1299,7 @@ class DB
      */
     public static function commitTransaction(bool $writeNode = true): void
     {
-        self::executeQuery("COMMIT;", $writeNode);
+        self::executeQuery('COMMIT;', $writeNode);
     }
 
     /**
@@ -1253,7 +1311,7 @@ class DB
      */
     public static function rollbackTransaction(bool $writeNode = true): void
     {
-        self::executeQuery("ROLLBACK;", $writeNode);
+        self::executeQuery('ROLLBACK;', $writeNode);
     }
 
     /**
@@ -1273,9 +1331,9 @@ class DB
             self::rollbackTransaction($writeNode);
         }
         if (!$readOnly) {
-            self::executeQuery("SET autocommit=1;", $writeNode);
-            self::executeQuery("SET unique_checks=1;", $writeNode);
-            self::executeQuery("SET foreign_key_checks=1;", $writeNode);
+            self::executeQuery('SET autocommit=1;', $writeNode);
+            self::executeQuery('SET unique_checks=1;', $writeNode);
+            self::executeQuery('SET foreign_key_checks=1;', $writeNode);
         }
     }
 
@@ -1287,7 +1345,7 @@ class DB
     public static function checkIfWsrep(): bool
     {
         self::addToStats(__FUNCTION__);
-        return self::checkForResult("SHOW SESSION STATUS LIKE 'wsrep_cluster_status';");
+        return self::checkForResult('SHOW SESSION STATUS LIKE 'wsrep_cluster_status';');
     }
 
     /**
@@ -1302,9 +1360,9 @@ class DB
         if (self::$wsrepSupport) {
             try {
                 if ($on) {
-                    mysqli_query(self::$mlink, "SET SESSION wsrep_sync_wait = 1;");
+                    mysqli_query(self::$mlink, 'SET SESSION wsrep_sync_wait = 1;');
                 } else {
-                    mysqli_query(self::$mlink, "SET SESSION wsrep_sync_wait = 0;");
+                    mysqli_query(self::$mlink, 'SET SESSION wsrep_sync_wait = 0;');
                 }
             } catch (\Exception $ex) {
             }
