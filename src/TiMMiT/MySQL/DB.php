@@ -1104,14 +1104,14 @@ class DB
                     $firstCreateRow = $createRows[0];
                 }
                 $createTable = '';
-                if (array_key_exists('Create Table', $firstCreateRow)) {
+                if (is_array($firstCreateRow) && array_key_exists('Create Table', $firstCreateRow)) {
                     $createTable = (string)$firstCreateRow['Create Table'];
                 }
                 if ('' !== $createTable) {
-                    if (preg_match('/DEFAULT\s+CHARSET\s*=\s*(\w+)/i', $createTable, $m)) {
+                    if (false !== preg_match('/DEFAULT\s+CHARSET\s*=\s*(\w+)/i', $createTable, $m)) {
                         $current_charset = $m[1];
                     }
-                    if (preg_match_all('/COLLATE\s*=\s*(\w+)/i', $createTable, $m) && !empty($m[1])) {
+                    if (false !== preg_match_all('/COLLATE\s*=\s*(\w+)/i', $createTable, $m) && !empty($m[1])) {
                         $current_collation = end($m[1]);
                     }
                 }
