@@ -604,7 +604,7 @@ class DB
     public static function checkTableExist(string $table): bool
     {
         self::addToStats(__FUNCTION__);
-        return self::checkForResult('SHOW TABLES LIKE ' . $table . ';');
+        return self::checkForResult('SHOW TABLES LIKE `' . $table . '`;');
     }
 
     /**
