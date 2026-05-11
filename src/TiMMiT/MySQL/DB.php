@@ -933,12 +933,12 @@ class DB
 
                     // Column-level charset/collation: parse COLLATE from query column definition (column def uses "COLLATE name", no equals)
                     $desired_col_collation = null;
-                    if (preg_match('/COLLATE\s+(\w+)/i', $columnDef, $colCollMatch)) {
+                    if (false !== preg_match('/COLLATE\s+(\w+)/i', $columnDef, $colCollMatch)) {
                         $desired_col_collation = $colCollMatch[1];
                     }
                     $current_col_collation = null;
                     if (isset($tablefield['Collation'])) {
-                        $current_col_collation = (string)$tablefield['Collation'];
+                        $current_col_collation = $tablefield['Collation'];
                     }
                     $collation_differs = false;
                     if (!is_null($desired_col_collation) && !is_null($current_col_collation)) {
@@ -1089,23 +1089,23 @@ class DB
             // Charset and collation: parse from CREATE TABLE and compare with existing table.
             $desired_charset = null;
             $desired_collation = null;
-            if (preg_match('/DEFAULT\s+CHARSET\s*=\s*(\w+)/i', $qry, $m)) {
+            if (false !== preg_match('/DEFAULT\s+CHARSET\s*=\s*(\w+)/i', $qry, $m)) {
                 $desired_charset = $m[1];
             }
-            if (preg_match_all('/COLLATE\s*=\s*(\w+)/i', $qry, $m) && !empty($m[1])) {
+            if (false !== preg_match_all('/COLLATE\s*=\s*(\w+)/i', $qry, $m) && !empty($m[1])) {
                 $desired_collation = end($m[1]);
             }
             if (!is_null($desired_charset) && !is_null($desired_collation)) {
                 $current_charset = null;
                 $current_collation = null;
-                $createRows = self::selectQuery("SHOW CREATE TABLE `" . $table . "`");
+                $createRows = self::selectQuery('SHOW CREATE TABLE `' . $table . '`;');
                 $firstCreateRow = [];
                 if (isset($createRows[0])) {
                     $firstCreateRow = $createRows[0];
                 }
                 $createTable = '';
-                if (isset($firstCreateRow['Create Table'])) {
-                    $createTable = $firstCreateRow['Create Table'];
+                if (array_key_exists('Create Table', $firstCreateRow)) {
+                    $createTable = (string)$firstCreateRow['Create Table'];
                 }
                 if ('' !== $createTable) {
                     if (preg_match('/DEFAULT\s+CHARSET\s*=\s*(\w+)/i', $createTable, $m)) {
@@ -1115,7 +1115,7 @@ class DB
                         $current_collation = end($m[1]);
                     }
                 }
-                $charset_changed = strtolower((string)$desired_charset) !== strtolower((string)$current_charset);
+                $charset_changed = strtolower($desired_charset) !== strtolower((string)$current_charset);
                 $collation_changed = strtolower((string)$desired_collation) !== strtolower((string)$current_collation);
                 if ($charset_changed || $collation_changed) {
                     $cqueries[] = "ALTER TABLE `{$table}` CONVERT TO CHARACTER SET {$desired_charset} COLLATE {$desired_collation}";
