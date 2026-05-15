@@ -1082,6 +1082,8 @@ class DB
             $total = (int)$totalResult[0]['total'];
         }
         $chunk = 1000;
+        $flushEvery = 5000;
+        $gcEvery = 50000;
 
         $query = "SELECT " . $fieldsTxt . " FROM " . self::clean4DB($table, true) . " WHERE " . $where;
 
@@ -1118,6 +1120,13 @@ class DB
                     }
                     fputcsv($fp, $row, $delimiter, $enclosure, $escape_char);
                     $a++;
+
+                    if (0 === ($a % $flushEvery)) {
+                        fflush($fp);
+                    }
+                    if (0 === ($a % $gcEvery)) {
+                        gc_collect_cycles();
+                    }
                 }
                 $result->free();
             }
