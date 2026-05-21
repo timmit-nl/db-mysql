@@ -266,21 +266,33 @@ class DB
     /**
      * Disconnect to DB
      *
+     * @param bool $skipPing Do not query existing sockets before closing them.
+     *
      * @return void
      */
-    public static function disconnect(): void
+    public static function disconnect(bool $skipPing = false): void
     {
         try {
             self::addToStats(__FUNCTION__);
 
             mysqli_report(self::$mysqliReportingExceptionOn);
-            if (self::$writeActive && self::ping(true)) {
-                mysqli_close(self::$mlinkWrite);
+            if (self::$writeActive && isset(self::$mlinkWrite) && ($skipPing || self::ping(true))) {
+                try {
+                    mysqli_close(self::$mlinkWrite);
+                } catch (\Throwable $e) {
+                } finally {
+                    unset(self::$mlinkWrite);
+                }
             }
-            if (self::ping()) {
-                mysqli_close(self::$mlink);
+            if (isset(self::$mlink) && ($skipPing || self::ping())) {
+                try {
+                    mysqli_close(self::$mlink);
+                } catch (\Throwable $e) {
+                } finally {
+                    unset(self::$mlink);
+                }
             }
-        } catch (\mysqli_sql_exception $e) {
+        } catch (\Throwable $e) {
         }
         mysqli_report(self::$mysqliReportingExceptionOff);
     }
@@ -288,12 +300,14 @@ class DB
     /**
      * reconnect to DB
      *
+     * @param bool $skipPing Do not query existing sockets before reconnecting.
+     *
      * @return void
      */
-    public static function reconnect(): void
+    public static function reconnect(bool $skipPing = false): void
     {
         self::addToStats(__FUNCTION__);
-        self::disconnect();
+        self::disconnect($skipPing);
         self::connect();
     }
 
