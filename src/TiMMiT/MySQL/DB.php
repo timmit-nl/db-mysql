@@ -280,8 +280,7 @@ class DB
                 try {
                     mysqli_close(self::$mlinkWrite);
                 } catch (\Throwable $e) {
-                }
-                if ($skipPing) {
+                } finally {
                     unset(self::$mlinkWrite);
                 }
             }
@@ -289,8 +288,7 @@ class DB
                 try {
                     mysqli_close(self::$mlink);
                 } catch (\Throwable $e) {
-                }
-                if ($skipPing) {
+                } finally {
                     unset(self::$mlink);
                 }
             }
