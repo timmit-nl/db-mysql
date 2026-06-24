@@ -16,7 +16,7 @@ namespace TiMMiT\MySQL\Where;
 use Iterator;
 use Countable;
 use Stringable;
-use TiMMiT\MySQL\DB;
+
 use TiMMiT\MySQL\DBException;
 
 /**
@@ -268,7 +268,11 @@ class Collection implements Iterator, Countable, Stringable
         if (($this->ifEmptyThenShowAll == true) && ($this->count() === 0)) {
             return "(1=1)";
         } else {
-            return "(" . implode(" " . $this->operator . " ", $this->array) . ")";
+            switch ($this->operator) {
+                case 'NOT':
+                    return 'NOT (' . implode(' AND ', $this->array) . ')';
+            }
+            return '(' . implode(' ' . $this->operator . ' ', $this->array) . ')';
         }
     }
 }
