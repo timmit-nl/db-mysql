@@ -775,6 +775,7 @@ class DB
                 $length = 25;
                 break;
         endswitch;
+        $defaultLength = $length;
         if (0 === $len) {
             $length = 0;
         } else {
@@ -787,6 +788,13 @@ class DB
             }
             $id = base_convert(hash($hash, $seed), 16, 36);
         } else {
+            /* With $len === 0 the historic behaviour was to return an id of the hash's natural
+               length instead of an empty string, so fall back to the per-hash default length here. */
+            if ($length > 0) {
+                $randomLength = $length;
+            } else {
+                $randomLength = $defaultLength;
+            }
             // The Secure engine is the default, but we make it explicit
             if (
                 \PHP_VERSION_ID >= 80300 &&
@@ -794,19 +802,14 @@ class DB
                 class_exists('\Random\Engine\Secure')
             ) {
                 $randomizer = new \Random\Randomizer(new \Random\Engine\Secure());
-                // getBytesFromString() throws a ValueError when $length < 1 (e.g. when $len === 0).
-                if ($length > 0) {
-                    $id = $randomizer->getBytesFromString(self::RANDOM_ID_ALPHABET, $length);
-                } else {
-                    $id = '';
-                }
+                $id = $randomizer->getBytesFromString(self::RANDOM_ID_ALPHABET, $randomLength);
             } else {
                 /* Fallback for PHP < 8.3: draw each character from the same alphabet with a CSPRNG.
                    random_int() is cryptographically secure and bias-free, so every character carries
                    the full ~log2(strlen(self::RANDOM_ID_ALPHABET)) bits of entropy. */
                 $max = strlen(self::RANDOM_ID_ALPHABET) - 1;
                 $id = '';
-                for ($a = 0; $a < $length; $a++) {
+                for ($a = 0; $a < $randomLength; $a++) {
                     $id .= self::RANDOM_ID_ALPHABET[random_int(0, $max)];
                 }
             }
