@@ -814,15 +814,19 @@ class DB
                 }
             }
         }
-        $erbij = $length - strlen($id);
-        if ($erbij > 0) {
+        $missing = $length - strlen($id);
+        if ($missing > 0) {
             if ('' === $add) {
-                /* Derive extra characters deterministically from the seed so a seeded id stays
-                    reproducible (no rand()). 15 hex digits fit in a PHP int, so base_convert() is exact. */
-                $teller = 0;
+                /* Derive extra characters deterministically from the already generated id (which in
+                   the seeded path is itself derived from the seed), so a seeded id stays reproducible
+                   without rand(). Hashing $id instead of $seed keeps this branch type-safe: $seed is
+                   only normalised to a string within the seeded path, whereas $id is always a string.
+                   15 hex digits fit in a PHP int, so base_convert() is exact. */
+                $counter = 0;
+                $paddingBase = $id;
                 while (strlen($id) < $length) {
-                    $id .= base_convert(substr(hash($hash, $seed . $teller), 0, 15), 16, 36);
-                    $teller++;
+                    $id .= base_convert(substr(hash($hash, $paddingBase . $counter), 0, 15), 16, 36);
+                    $counter++;
                 }
                 $id = substr($id, 0, $length);
             } else {
