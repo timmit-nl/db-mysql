@@ -21,6 +21,14 @@ use TiMMiT\MySQL\Where\Collection;
 class DB
 {
     /**
+     * Alphabet used for random id generation. Excludes ambiguous characters (l, o) and uppercase
+     * to keep ids unambiguous; shared by both the Secure engine path and the random_int fallback.
+     *
+     * @var string
+     */
+    private const RANDOM_ID_ALPHABET = 'abcdefghijkmnpqrstuvwxyz0123456789';
+
+    /**
      * The config vars.
      *
      * @var string[]|int[]
@@ -786,12 +794,21 @@ class DB
                 class_exists('\Random\Engine\Secure')
             ) {
                 $randomizer = new \Random\Randomizer(new \Random\Engine\Secure());
-                $id = $randomizer->getBytesFromString('abcdefghijkmnpqrstuvwxyz0123456789', $length);
+                // getBytesFromString() throws a ValueError when $length < 1 (e.g. when $len === 0).
+                if ($length > 0) {
+                    $id = $randomizer->getBytesFromString(self::RANDOM_ID_ALPHABET, $length);
+                } else {
+                    $id = '';
+                }
             } else {
-                $idGenerated = base_convert(bin2hex(random_bytes(100)), 16, 36);
-                $totalLenght = strlen($idGenerated);
-                $begin = rand(0, $totalLenght - $length);
-                $id = substr($idGenerated, $begin, $length);
+                /* Fallback for PHP < 8.3: draw each character from the same alphabet with a CSPRNG.
+                   random_int() is cryptographically secure and bias-free, so every character carries
+                   the full ~log2(strlen(self::RANDOM_ID_ALPHABET)) bits of entropy. */
+                $max = strlen(self::RANDOM_ID_ALPHABET) - 1;
+                $id = '';
+                for ($a = 0; $a < $length; $a++) {
+                    $id .= self::RANDOM_ID_ALPHABET[random_int(0, $max)];
+                }
             }
         }
         $erbij = $length - strlen($id);
