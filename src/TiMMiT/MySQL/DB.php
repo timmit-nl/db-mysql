@@ -757,7 +757,7 @@ class DB
      *
      * @return string
      */
-    public static function makeId(string $hash = '', int $len = 1, mixed $seed = "", string $add = ''): string
+    public static function makeId(string $hash = '', int $len = 1, mixed $seed = '', string $add = ''): string
     {
         self::addToStats(__FUNCTION__);
         switch ($hash):
@@ -814,16 +814,16 @@ class DB
         $erbij = $length - strlen($id);
         if ($erbij > 0) {
             if ('' === $add) {
-                $stap = 10;
-                for ($a = 0; $a < $erbij; $a += $stap) {
-                    $erbij2 = min(($erbij - $a), $stap);
-                    $rand = (string)rand(pow(36, ($erbij2 - 1)), (pow(36, $erbij2) - 1));
-                    $id .= base_convert($rand, 10, 36);
+                /* Derive extra characters deterministically from the seed so a seeded id stays
+                    reproducible (no rand()). 15 hex digits fit in a PHP int, so base_convert() is exact. */
+                $teller = 0;
+                while (strlen($id) < $length) {
+                    $id .= base_convert(substr(hash($hash, $seed . $teller), 0, 15), 16, 36);
+                    $teller++;
                 }
+                $id = substr($id, 0, $length);
             } else {
-                for ($a = 0; $a < $erbij; $a++) {
-                    $id .= $add;
-                }
+                $id = str_pad($id, $length, $add, STR_PAD_RIGHT);
             }
         }
         return $id;
