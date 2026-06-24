@@ -760,7 +760,7 @@ class DB
     public static function makeId(string $hash = '', int $len = 1, mixed $seed = '', string $add = ''): string
     {
         self::addToStats(__FUNCTION__);
-        switch ($hash):
+        switch ($hash) {
             default:
                 $hash = 'sha1';
                 $length = 32;
@@ -774,7 +774,7 @@ class DB
             case 'md5':
                 $length = 25;
                 break;
-        endswitch;
+        };
         $defaultLength = $length;
         if (0 === $len) {
             $length = 0;
