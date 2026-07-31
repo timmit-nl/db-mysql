@@ -966,6 +966,13 @@ class DB
             // Index stuff goes here. Fetch the table index structure from the database.
             $tableindices = self::selectQuery("SHOW INDEX FROM `{$table}`;");
 
+            // Collect existing index names so changed keys can be dropped before re-adding.
+            $existingIndexNames = [];
+            foreach ($tableindices as $existingIndex) {
+                /** @var (string|int)[] $existingIndex */
+                $existingIndexNames[(string)$existingIndex['Key_name']] = true;
+            }
+
             if (count($tableindices) > 0) {
                 // Clear the index array.
                 $index_ary = [];
@@ -1039,6 +1046,16 @@ class DB
 
             // For every remaining index specified for the table.
             foreach ($indices as $index) {
+                // If a non-primary key with this name already exists, drop it first so it can be
+                // recreated with the new (e.g. composite) definition instead of failing on ADD.
+                if (1 === preg_match('/KEY\s+`([^`]+)`/i', $index, $keyMatch)) {
+                    $keyName = $keyMatch[1];
+                    if (isset($existingIndexNames[$keyName])) {
+                        $cqueries[] = "ALTER TABLE `{$table}` DROP INDEX `{$keyName}`";
+                        $for_update[$table . '.' . $keyName] = 'Dropped index ' . $table . ' ' . $keyName . ' (recreated)';
+                    }
+                }
+
                 // Push a query line into $cqueries that adds the index to that table.
                 $cqueries[] = "ALTER TABLE `{$table}` ADD $index";
                 $for_update[] = 'Added index ' . $table . ' ' . $index;
