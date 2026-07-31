@@ -1085,8 +1085,8 @@ class DB
      *
      * PRIMARY KEY has no backtick name and is intentionally never dropped here.
      *
-     * @param string $table The table name without surrounding backticks.
-     * @param string $index The index definition as produced by the schema parser.
+     * @param string $table              The table name without surrounding backticks.
+     * @param string $index              The index definition as produced by the schema parser.
      * @param array<string, bool> $existingIndexNames Map of existing index names to presence.
      *
      * @return array{query: string, recreatedKey: string} The query, plus the recreated key name (empty when none).
