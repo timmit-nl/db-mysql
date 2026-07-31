@@ -1047,18 +1047,18 @@ class DB
 
             // For every remaining index specified for the table.
             foreach ($indices as $index) {
-                // If a non-primary key with this name already exists, drop it first so it can be
-                // recreated with the new (e.g. composite) definition instead of failing on ADD.
-                if (1 === preg_match('/KEY\s+`([^`]+)`/i', $index, $keyMatch)) {
-                    $keyName = $keyMatch[1];
-                    if (isset($existingIndexNames[$keyName])) {
-                        $cqueries[] = "ALTER TABLE `{$table}` DROP INDEX `{$keyName}`";
-                        $for_update[$table . '.' . $keyName] = 'Dropped index ' . $table . ' ' . $keyName . ' (recreated)';
-                    }
+                // Build the ALTER statement for this index. When a non-primary key with the same
+                // name already exists, it is dropped within the same statement so the key is
+                // recreated with the new (e.g. composite) definition in a single atomic rebuild,
+                // instead of a separate DROP that would leave the table without the index if the
+                // following ADD fails.
+                $addIndex = self::buildAddIndexQuery((string)$table, $index, $existingIndexNames);
+                if ('' !== $addIndex['recreatedKey']) {
+                    $for_update[$table . '.' . $addIndex['recreatedKey']] = 'Recreated index ' . $table . ' ' . $addIndex['recreatedKey'];
                 }
 
-                // Push a query line into $cqueries that adds the index to that table.
-                $cqueries[] = "ALTER TABLE `{$table}` ADD $index";
+                // Push the query line into $cqueries that adds the index to that table.
+                $cqueries[] = $addIndex['query'];
                 $for_update[] = 'Added index ' . $table . ' ' . $index;
             }
 
@@ -1073,6 +1073,40 @@ class DB
             }
         }
         return $for_update;
+    }
+
+    /**
+     * Build the ALTER TABLE statement that adds a single index definition.
+     *
+     * When a non-primary key with the same name already exists in the table, a DROP INDEX
+     * clause is prepended within the same statement. This recreates the key with the new
+     * definition in a single atomic rebuild instead of failing on a duplicate key name, and
+     * avoids leaving the table without the index between a separate DROP and ADD.
+     *
+     * PRIMARY KEY has no backtick name and is intentionally never dropped here.
+     *
+     * @param string $table The table name without surrounding backticks.
+     * @param string $index The index definition as produced by the schema parser.
+     * @param array<string, bool> $existingIndexNames Map of existing index names to presence.
+     *
+     * @return array{query: string, recreatedKey: string} The query, plus the recreated key name (empty when none).
+     */
+    private static function buildAddIndexQuery(string $table, string $index, array $existingIndexNames): array
+    {
+        $dropClause = '';
+        $recreatedKey = '';
+        if (1 === preg_match('/KEY\s+`([^`]+)`/i', $index, $keyMatch)) {
+            $keyName = $keyMatch[1];
+            if (isset($existingIndexNames[$keyName])) {
+                $dropClause = "DROP INDEX `{$keyName}`, ";
+                $recreatedKey = $keyName;
+            }
+        }
+
+        return [
+            'query' => "ALTER TABLE `{$table}` {$dropClause}ADD {$index}",
+            'recreatedKey' => $recreatedKey,
+        ];
     }
 
     /**
