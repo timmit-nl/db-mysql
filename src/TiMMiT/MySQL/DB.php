@@ -967,6 +967,7 @@ class DB
             $tableindices = self::selectQuery("SHOW INDEX FROM `{$table}`;");
 
             // Collect existing index names so changed keys can be dropped before re-adding.
+            /** @var array<string, true> $existingIndexNames */
             $existingIndexNames = [];
             foreach ($tableindices as $existingIndex) {
                 /** @var (string|int)[] $existingIndex */
