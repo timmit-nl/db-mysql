@@ -1095,7 +1095,9 @@ class DB
     {
         $dropClause = '';
         $recreatedKey = '';
-        if (1 === preg_match('/KEY\s+`([^`]+)`/i', $index, $keyMatch)) {
+        // Match both the KEY and INDEX keyword (also UNIQUE/FULLTEXT ... INDEX), which MySQL
+        // treats as synonyms. PRIMARY KEY has no backtick name and therefore never matches.
+        if (1 === preg_match('/(?:KEY|INDEX)\s+`([^`]+)`/i', $index, $keyMatch)) {
             $keyName = $keyMatch[1];
             if (isset($existingIndexNames[$keyName])) {
                 $dropClause = "DROP INDEX `{$keyName}`, ";

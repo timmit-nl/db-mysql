@@ -68,6 +68,42 @@ class DbDeltaTest extends BaseTestCase
     }
 
     /**
+     * The INDEX keyword is a synonym for KEY and must be handled the same way.
+     */
+    public function testBuildAddIndexQueryDropsExistingIndexKeyword(): void
+    {
+        $result = $this->invokeStaticPrivateMethod(
+            DB::class,
+            'buildAddIndexQuery',
+            ['my_table', 'INDEX `idx_name` (`col_a`,`col_b`)', ['idx_name' => true]]
+        );
+
+        $this->assertSame(
+            'ALTER TABLE `my_table` DROP INDEX `idx_name`, ADD INDEX `idx_name` (`col_a`,`col_b`)',
+            $result['query']
+        );
+        $this->assertSame('idx_name', $result['recreatedKey']);
+    }
+
+    /**
+     * A UNIQUE INDEX definition must also be recognised and dropped before re-adding.
+     */
+    public function testBuildAddIndexQueryDropsExistingUniqueIndexKeyword(): void
+    {
+        $result = $this->invokeStaticPrivateMethod(
+            DB::class,
+            'buildAddIndexQuery',
+            ['my_table', 'UNIQUE INDEX `uniq_name` (`col_a`)', ['uniq_name' => true]]
+        );
+
+        $this->assertSame(
+            'ALTER TABLE `my_table` DROP INDEX `uniq_name`, ADD UNIQUE INDEX `uniq_name` (`col_a`)',
+            $result['query']
+        );
+        $this->assertSame('uniq_name', $result['recreatedKey']);
+    }
+
+    /**
      * A PRIMARY KEY has no backtick name and must never trigger a DROP, even when a key named
      * "PRIMARY" is registered as existing.
      */
