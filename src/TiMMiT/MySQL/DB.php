@@ -266,21 +266,33 @@ class DB
     /**
      * Disconnect to DB
      *
+     * @param bool $skipPing Do not query existing sockets before closing them.
+     *
      * @return void
      */
-    public static function disconnect(): void
+    public static function disconnect(bool $skipPing = false): void
     {
         try {
             self::addToStats(__FUNCTION__);
 
             mysqli_report(self::$mysqliReportingExceptionOn);
-            if (self::$writeActive && self::ping(true)) {
-                mysqli_close(self::$mlinkWrite);
+            if (self::$writeActive && isset(self::$mlinkWrite) && ($skipPing || self::ping(true))) {
+                try {
+                    mysqli_close(self::$mlinkWrite);
+                } catch (\Throwable $e) {
+                } finally {
+                    unset(self::$mlinkWrite);
+                }
             }
-            if (self::ping()) {
-                mysqli_close(self::$mlink);
+            if (isset(self::$mlink) && ($skipPing || self::ping())) {
+                try {
+                    mysqli_close(self::$mlink);
+                } catch (\Throwable $e) {
+                } finally {
+                    unset(self::$mlink);
+                }
             }
-        } catch (\mysqli_sql_exception $e) {
+        } catch (\Throwable $e) {
         }
         mysqli_report(self::$mysqliReportingExceptionOff);
     }
@@ -288,12 +300,14 @@ class DB
     /**
      * reconnect to DB
      *
+     * @param bool $skipPing Do not query existing sockets before reconnecting.
+     *
      * @return void
      */
-    public static function reconnect(): void
+    public static function reconnect(bool $skipPing = false): void
     {
         self::addToStats(__FUNCTION__);
-        self::disconnect();
+        self::disconnect($skipPing);
         self::connect();
     }
 
@@ -375,6 +389,7 @@ class DB
             $errorno = mysqli_errno($mlink);
             $error = mysqli_error($mlink);
             switch ($errorno) {
+                case 1020:
                 case 1213:
                     if ($count < self::$max_deadlock_count) {
                         $count++;
@@ -384,10 +399,12 @@ class DB
                         throw new DBException("Query Failed:<ul><li>errorno=" . $errorno . "</li><li>failure_count=" . $count . " of max=" . self::$max_deadlock_count . " </li><li>error=" . $error . "</li><li>query=" . $query . "</li></ul>", $errorno);
                     }
                     break;
-                case 2006:
                 case 1047:
                 case 1156:
+                case 1180:
                 case 1205:
+                case 2006:
+                case 4031:
                     if ($count >= self::$max_goneaway_count && $write) {
                         $write = false;
                         $count = 0;
@@ -760,7 +777,8 @@ class DB
         } else {
             $length = max($len, $length);
         }
-        if (!empty($seed)) {
+        $hasSeed = (!is_null($seed) && '' !== $seed && false !== $seed && 0 !== $seed && '0' !== $seed && (!is_array($seed) || count($seed) > 0));
+        if ($hasSeed) {
             if (!is_string($seed)) {
                 $seed = serialize($seed);
             }
@@ -795,92 +813,6 @@ class DB
     {
         self::addToStats(__FUNCTION__);
         return mysqli_character_set_name(self::$mlink);
-    }
-
-    /**
-     * Make where statement from parameters
-     *
-     * @param mixed[]|null $param paramater or parameters as assoc array
-     * @param string $table
-     *
-     * @return string
-     *
-     * @deprecated 10.0 Use DB\Where\Collection instead of array of params and getWhereFromCollection instead of getWhereFromParam
-     */
-    public static function getWhereFromParam(?array $param = null, string $table = ''): string
-    {
-        self::addToStats(__FUNCTION__);
-        if (is_array($param) && count($param) > 0) {
-            $where = "(";
-            $divider_operator = 'AND';
-            foreach ($param as $par) {
-                if (is_array($par) && isset($par['divider_operator'])) {
-                    $divider_operator = $par['divider_operator'];
-                }
-                if (is_array($par) && isset($par['param'])) {
-                    if (!empty($par['param'])) {
-                        if (!isset($par['operator'])) {
-                            $par['operator'] = '';
-                        }
-                        if (is_array($par['param']) && (!in_array($par['operator'], ['IN', 'NOT IN'], true))) {
-                            $where .= '' . self::getWhereFromParam($par['param'], $table) . ' ' . self::clean4DB((string)$divider_operator) . " ";
-                        } else {
-                            if (!isset($par['value'])) {
-                                $par['value'] = '';
-                            }
-                            if ('' !== $table) {
-                                $where .= "`" . $table . "`.";
-                            }
-                            $par['operator'] = strtoupper($par['operator']);
-                            switch ($par['operator']) {
-                                case 'IN':
-                                case 'NOT IN':
-                                    $value_txt = '';
-                                    if (is_array($par['value'])) {
-                                        if (count($par['value']) > 0) {
-                                            $values = [];
-                                            foreach ($par['value'] as $value) {
-                                                $value = self::clean4DB((string)$value);
-                                                if (true === ($par['dont_escape_special_characters'] ?? false)) {
-                                                    $value = str_replace('#', "_", $value);
-                                                    $value = str_replace('\_', "_", $value);
-                                                    $value = str_replace('*', "%", $value);
-                                                }
-                                                $values[] = $value;
-                                            }
-                                            $value_txt = "'" . implode("','", $values) . "'";
-                                        }
-                                    } else {
-                                        $value_txt = $par['value'];
-                                    }
-                                    $where .= "`" . self::clean4DB((string)$par['param'], true) . "` " . $par['operator'] . " (" . $value_txt . ") " . self::clean4DB((string)$divider_operator) . " ";
-                                    break;
-                                default:
-                                    $value = self::clean4DB((string)$par['value']);
-                                    if (true === ($par['dont_escape_special_characters'] ?? false)) {
-                                        $value = str_replace('#', "_", $value);
-                                        $value = str_replace('\_', "_", $value);
-                                        $value = str_replace('*', "%", $value);
-                                    }
-                                    $where .= "`" . self::clean4DB((string)$par['param'], true) . "` " . self::clean4DB($par['operator']) . " '" . $value . "' " . self::clean4DB((string)$divider_operator) . " ";
-                                    break;
-                            }
-                        }
-                    }
-                }
-            }
-            if (is_array($par ?? null) && isset($par['divider_operator'])) {
-                $divider_operator = $par['divider_operator'];
-            }
-            $where = substr($where, 0, (0 - strlen(" " . self::clean4DB((string)$divider_operator) . " ")));
-            $where .= ")";
-            if (")" === $where) {
-                $where = "";
-            }
-        } else {
-            $where = "(1=1)";
-        }
-        return $where;
     }
 
     /**
@@ -1039,6 +971,14 @@ class DB
             // Index stuff goes here. Fetch the table index structure from the database.
             $tableindices = self::selectQuery("SHOW INDEX FROM `{$table}`;");
 
+            // Collect existing index names so changed keys can be dropped before re-adding.
+            /** @var array<string, true> $existingIndexNames */
+            $existingIndexNames = [];
+            foreach ($tableindices as $existingIndex) {
+                /** @var (string|int)[] $existingIndex */
+                $existingIndexNames[(string)$existingIndex['Key_name']] = true;
+            }
+
             if (count($tableindices) > 0) {
                 // Clear the index array.
                 $index_ary = [];
@@ -1112,8 +1052,18 @@ class DB
 
             // For every remaining index specified for the table.
             foreach ($indices as $index) {
-                // Push a query line into $cqueries that adds the index to that table.
-                $cqueries[] = "ALTER TABLE `{$table}` ADD $index";
+                // Build the ALTER statement for this index. When a non-primary key with the same
+                // name already exists, it is dropped within the same statement so the key is
+                // recreated with the new (e.g. composite) definition in a single atomic rebuild,
+                // instead of a separate DROP that would leave the table without the index if the
+                // following ADD fails.
+                $addIndex = self::buildAddIndexQuery((string)$table, $index, $existingIndexNames);
+                if ('' !== $addIndex['recreatedKey']) {
+                    $for_update[$table . '.' . $addIndex['recreatedKey']] = 'Recreated index ' . $table . ' ' . $addIndex['recreatedKey'];
+                }
+
+                // Push the query line into $cqueries that adds the index to that table.
+                $cqueries[] = $addIndex['query'];
                 $for_update[] = 'Added index ' . $table . ' ' . $index;
             }
 
@@ -1131,11 +1081,47 @@ class DB
     }
 
     /**
+     * Build the ALTER TABLE statement that adds a single index definition.
+     *
+     * When a non-primary key with the same name already exists in the table, a DROP INDEX
+     * clause is prepended within the same statement. This recreates the key with the new
+     * definition in a single atomic rebuild instead of failing on a duplicate key name, and
+     * avoids leaving the table without the index between a separate DROP and ADD.
+     *
+     * PRIMARY KEY has no backtick name and is intentionally never dropped here.
+     *
+     * @param string $table              The table name without surrounding backticks.
+     * @param string $index              The index definition as produced by the schema parser.
+     * @param array<string, bool> $existingIndexNames Map of existing index names to presence.
+     *
+     * @return array{query: string, recreatedKey: string} The query, plus the recreated key name (empty when none).
+     */
+    private static function buildAddIndexQuery(string $table, string $index, array $existingIndexNames): array
+    {
+        $dropClause = '';
+        $recreatedKey = '';
+        // Match both the KEY and INDEX keyword (also UNIQUE/FULLTEXT ... INDEX), which MySQL
+        // treats as synonyms. PRIMARY KEY has no backtick name and therefore never matches.
+        if (1 === preg_match('/(?:KEY|INDEX)\s+`([^`]+)`/i', $index, $keyMatch)) {
+            $keyName = $keyMatch[1];
+            if (isset($existingIndexNames[$keyName])) {
+                $dropClause = "DROP INDEX `{$keyName}`, ";
+                $recreatedKey = $keyName;
+            }
+        }
+
+        return [
+            'query' => "ALTER TABLE `{$table}` {$dropClause}ADD {$index}",
+            'recreatedKey' => $recreatedKey,
+        ];
+    }
+
+    /**
      * Export function 2 csv
      *
      * @param string $table       table
      * @param string[] $fields      if empty=* else array of fields
-     * @param null|Collection $Collection  params array for where
+     * @param null|Collection $Collection  Collection object for where
      * @param string|null $file        path to file, null to tempfile
      * @param bool $return      true return csv else return rows of csv
      * @param string $delimiter   delimiter of csv default ;
@@ -1169,6 +1155,8 @@ class DB
             $total = (int)$totalResult[0]['total'];
         }
         $chunk = 1000;
+        $flushEvery = 5000;
+        $gcEvery = 50000;
 
         $query = "SELECT " . $fieldsTxt . " FROM " . self::clean4DB($table, true) . " WHERE " . $where;
 
@@ -1205,6 +1193,13 @@ class DB
                     }
                     fputcsv($fp, $row, $delimiter, $enclosure, $escape_char);
                     $a++;
+
+                    if (0 === ($a % $flushEvery)) {
+                        fflush($fp);
+                    }
+                    if (0 === ($a % $gcEvery)) {
+                        gc_collect_cycles();
+                    }
                 }
                 $result->free();
             }
