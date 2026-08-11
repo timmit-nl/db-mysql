@@ -993,7 +993,7 @@ class DB
                     /** @var string[] */
                     $columns = ['fieldname' => $tableindex['Column_name'], 'subpart' => $tableindex['Sub_part']];
                     $index_ary[$keyname]['columns'][] = $columns;
-                    $index_ary[$keyname]['unique'] = ($tableindex['Non_unique'] === 0) ? true : false;
+                    $index_ary[$keyname]['unique'] = ((int) $tableindex['Non_unique']) === 0;
                     $index_ary[$keyname]['index_type'] = $tableindex['Index_type'];
                 }
 
