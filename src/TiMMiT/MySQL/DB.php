@@ -1136,9 +1136,12 @@ class DB
 
                     unset($index_string);
                     foreach ($index_strings as $index_string) {
-                        if (!(false === ($aindex = array_search($index_string, $indices, true)))) {
-                            unset($indices[$aindex]);
-                            break;
+                        $normalizedExisting = self::normalizeIndexDefinition($index_string);
+                        foreach ($indices as $aindex => $desiredIndex) {
+                            if ($normalizedExisting === self::normalizeIndexDefinition($desiredIndex)) {
+                                unset($indices[$aindex]);
+                                break 2;
+                            }
                         }
                     }
                 }
@@ -1172,6 +1175,104 @@ class DB
             }
         }
         return $for_update;
+    }
+
+    /**
+     * Normalize an index definition so semantically identical keys compare equal.
+     *
+     * SQL files and SHOW INDEX format the same key in different ways: spaces after
+     * commas, INDEX vs KEY, optional backticks, extra whitespace, optional USING BTREE,
+     * and optional ASC. dbDelta used to treat those as a change and DROP+ADD the index
+     * on every update.
+     *
+     * Backtick-quoted identifiers are replaced with placeholders first, so whitespace
+     * and keyword rewrites cannot change a name that happens to contain INDEX, KEY,
+     * ASC, USING BTREE, or repeated spaces. Prefix lengths (`col(10)`) are kept,
+     * because those are a real schema difference.
+     *
+     * @param string $definition The index definition to normalize.
+     *
+     * @return string
+     */
+    private static function normalizeIndexDefinition(string $definition): string
+    {
+        $quotedIdentifiers = [];
+        $normalized = self::replaceQuotedIdentifiersWithPlaceholders(trim($definition), $quotedIdentifiers);
+
+        $collapsed = preg_replace('/\s+/', ' ', $normalized);
+        if (is_string($collapsed)) {
+            $normalized = $collapsed;
+        }
+
+        $withKeyKeyword = preg_replace('/\bINDEX\b/i', 'KEY', $normalized);
+        if (is_string($withKeyKeyword)) {
+            $normalized = $withKeyKeyword;
+        }
+
+        // Strip optional defaults before collapsing punctuation, otherwise
+        // `) USING BTREE` becomes `)USING BTREE` and the keyword no longer matches.
+        $withoutBtree = preg_replace('/\s+USING\s+BTREE\b/i', '', $normalized);
+        if (is_string($withoutBtree)) {
+            $normalized = $withoutBtree;
+        }
+
+        $withoutAsc = preg_replace('/\s+ASC\b/i', '', $normalized);
+        if (is_string($withoutAsc)) {
+            $normalized = $withoutAsc;
+        }
+
+        $withoutCommaSpace = preg_replace('/\s*,\s*/', ',', $normalized);
+        if (is_string($withoutCommaSpace)) {
+            $normalized = $withoutCommaSpace;
+        }
+
+        $withoutOpenParenSpace = preg_replace('/\s*\(\s*/', '(', $normalized);
+        if (is_string($withoutOpenParenSpace)) {
+            $normalized = $withoutOpenParenSpace;
+        }
+
+        $withoutCloseParenSpace = preg_replace('/\s*\)\s*/', ')', $normalized);
+        if (is_string($withoutCloseParenSpace)) {
+            $normalized = $withoutCloseParenSpace;
+        }
+
+        if (count($quotedIdentifiers) > 0) {
+            $normalized = str_replace(array_keys($quotedIdentifiers), array_values($quotedIdentifiers), $normalized);
+        }
+
+        return strtolower(trim($normalized));
+    }
+
+    /**
+     * Replace backtick-quoted identifiers with placeholders.
+     *
+     * Doubled backticks inside a name stay part of that identifier. The inner name
+     * is stored without the wrapping backticks so later comparison can still match
+     * a quoted name against the same unquoted identifier.
+     *
+     * @param string $definition        The index definition that may contain quoted names.
+     * @param array<string, string> $quotedIdentifiers Filled with placeholder => inner name.
+     *
+     * @return string
+     */
+    private static function replaceQuotedIdentifiersWithPlaceholders(string $definition, array &$quotedIdentifiers): string
+    {
+        $counter = 0;
+        $tokenized = preg_replace_callback(
+            '/`(?:[^`]|``)*`/',
+            static function (array $match) use (&$quotedIdentifiers, &$counter): string {
+                $placeholder = "\x00Q" . $counter . "\x00";
+                $counter++;
+                $quotedIdentifiers[$placeholder] = substr($match[0], 1, -1);
+                return $placeholder;
+            },
+            $definition
+        );
+        if (!is_string($tokenized)) {
+            return $definition;
+        }
+
+        return $tokenized;
     }
 
     /**
