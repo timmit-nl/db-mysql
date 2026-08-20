@@ -290,6 +290,55 @@ class DB
     }
 
     /**
+     * Read the session time zone of the primary connection.
+     *
+     * @return string SYSTEM, an offset such as +02:00, or SYSTEM when the value is missing.
+     */
+    private static function getSessionTimeZone(): string
+    {
+        $rows = self::selectQuery('SELECT @@session.time_zone AS time_zone');
+        $row = $rows[0] ?? null;
+        if (!is_array($row) || !is_string($row['time_zone'] ?? null) || '' === $row['time_zone']) {
+            return 'SYSTEM';
+        }
+
+        return $row['time_zone'];
+    }
+
+    /**
+     * Set the session time zone on the read connection and, when present, the write connection.
+     *
+     * Quotes in the value are stripped so the SET statement cannot break out of the string.
+     * An empty value is treated as SYSTEM, which is MySQL's default session time zone.
+     *
+     * @param string $timeZone SYSTEM or an offset such as +00:00.
+     *
+     * @return void
+     */
+    private static function setSessionTimeZoneOnAllConnections(string $timeZone): void
+    {
+        $escaped = str_replace("'", '', $timeZone);
+        if ('' === $escaped) {
+            $escaped = 'SYSTEM';
+        }
+        $query = "SET time_zone = '" . $escaped . "'";
+
+        try {
+            if (isset(self::$mlink) && self::ping()) {
+                mysqli_query(self::$mlink, $query);
+            }
+        } catch (\mysqli_sql_exception $e) {
+        }
+
+        try {
+            if (self::$writeActive && isset(self::$mlinkWrite) && self::ping(true)) {
+                mysqli_query(self::$mlinkWrite, $query);
+            }
+        } catch (\mysqli_sql_exception $e) {
+        }
+    }
+
+    /**
      * Disconnect to DB
      *
      * @param bool $skipPing Do not query existing sockets before closing them.
@@ -852,6 +901,11 @@ class DB
     /**
      * dbDelta on DB
      *
+     * TIMESTAMP defaults are stored in UTC and SHOW COLUMNS converts them to the
+     * session time zone. SQL files use naive literals, so schema comparison and DDL
+     * run in UTC. The previous session time zone is restored afterwards so DML keeps
+     * the PHP offset set in connect().
+     *
      * @param string|string[] $queries
      * @param bool $execute
      *
@@ -860,6 +914,25 @@ class DB
     public static function dbDelta($queries = '', bool $execute = true): array
     {
         self::addToStats(__FUNCTION__);
+        $previousTimeZone = self::getSessionTimeZone();
+        self::setSessionTimeZoneOnAllConnections('+00:00');
+        try {
+            return self::applyDbDelta($queries, $execute);
+        } finally {
+            self::setSessionTimeZoneOnAllConnections($previousTimeZone);
+        }
+    }
+
+    /**
+     * Apply the CREATE TABLE / ALTER TABLE reconciliation for dbDelta.
+     *
+     * @param string|string[] $queries
+     * @param bool $execute
+     *
+     * @return string[]
+     */
+    private static function applyDbDelta($queries, bool $execute): array
+    {
         // Separate individual queries into an array
         if (!is_array($queries)) {
             $queries = explode(';', $queries);
