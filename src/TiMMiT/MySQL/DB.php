@@ -240,9 +240,11 @@ class DB
 
         if (self::ping()) {
             self::setCharsetOnConnection(self::$mlink);
+            self::setTimeZoneOnConnection(self::$mlink);
         }
         if (self::$writeActive && self::ping(true)) {
             self::setCharsetOnConnection(self::$mlinkWrite);
+            self::setTimeZoneOnConnection(self::$mlinkWrite);
             self::$wsrepSupport = DB::checkIfWsrep();
             self::setWsrepSyncWait(true);
         }
@@ -259,6 +261,30 @@ class DB
     {
         try {
             mysqli_set_charset($mlink, self::$charset);
+        } catch (\mysqli_sql_exception $e) {
+        }
+    }
+
+    /**
+     * Let the connection use the same time zone as PHP.
+     *
+     * A timestamp column is converted to and from the time zone of the connection, so a server that
+     * runs in another one returns times that do not line up with what PHP wrote or compares against.
+     * Leaving it unset makes every comparison between a date built in PHP and such a column silently
+     * off by the difference between the two.
+     *
+     * The offset is sent instead of the name, because named zones need the time zone tables of MySQL
+     * to be filled and those are empty unless someone imported them.
+     *
+     * @param \mysqli $mlink
+     *
+     * @return void
+     */
+    private static function setTimeZoneOnConnection(\mysqli $mlink): void
+    {
+        try {
+            $offset = (new \DateTime())->format('P');
+            mysqli_query($mlink, "SET time_zone = '" . $offset . "'");
         } catch (\mysqli_sql_exception $e) {
         }
     }
