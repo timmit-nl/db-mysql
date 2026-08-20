@@ -1037,8 +1037,9 @@ class DB
 
                     unset($index_string);
                     foreach ($index_strings as $index_string) {
+                        $normalizedExisting = self::normalizeIndexDefinition($index_string);
                         foreach ($indices as $aindex => $desiredIndex) {
-                            if (self::indexDefinitionsMatch($index_string, $desiredIndex)) {
+                            if ($normalizedExisting === self::normalizeIndexDefinition($desiredIndex)) {
                                 unset($indices[$aindex]);
                                 break 2;
                             }
@@ -1135,22 +1136,6 @@ class DB
         }
 
         return strtolower(trim($normalized));
-    }
-
-    /**
-     * Tell whether two index definitions describe the same key.
-     *
-     * The original strings are left untouched for ALTER TABLE; only the comparison
-     * uses the normalized form.
-     *
-     * @param string $existing The definition rebuilt from SHOW INDEX.
-     * @param string $desired  The definition parsed from the CREATE TABLE statement.
-     *
-     * @return bool
-     */
-    private static function indexDefinitionsMatch(string $existing, string $desired): bool
-    {
-        return self::normalizeIndexDefinition($existing) === self::normalizeIndexDefinition($desired);
     }
 
     /**

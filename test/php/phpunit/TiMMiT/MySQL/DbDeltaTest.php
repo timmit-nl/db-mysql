@@ -11,15 +11,15 @@ use test\php\phpunit\BaseTestCase;
  * Tests for the index handling in DB::dbDelta().
  *
  * These cover the query building performed by DB::buildAddIndexQuery(), which decides whether a
- * pre-existing key must be dropped (in the same ALTER statement) before it is re-added, and the
- * comparison helpers that decide whether an existing index already matches the CREATE TABLE
- * definition. The full dbDelta() flow itself cannot be unit tested here because it requires a
- * live database connection.
+ * pre-existing key must be dropped (in the same ALTER statement) before it is re-added, and
+ * DB::normalizeIndexDefinition(), which decides whether an existing index already matches the
+ * CREATE TABLE definition. The full dbDelta() flow itself cannot be unit tested here because it
+ * requires a live database connection.
  */
 class DbDeltaTest extends BaseTestCase
 {
     /**
-     * Semantically identical index definitions must match, formatting differences must not.
+     * Semantically identical index definitions must normalize to the same string.
      *
      * @dataProvider indexDefinitionMatchProvider
      *
@@ -27,15 +27,20 @@ class DbDeltaTest extends BaseTestCase
      * @param string $desired  The definition parsed from CREATE TABLE.
      * @param bool   $expected Whether the two definitions describe the same key.
      */
-    public function testIndexDefinitionsMatch(string $existing, string $desired, bool $expected): void
+    public function testNormalizeIndexDefinition(string $existing, string $desired, bool $expected): void
     {
-        $matched = $this->invokeStaticPrivateMethod(
+        $normalizedExisting = $this->invokeStaticPrivateMethod(
             DB::class,
-            'indexDefinitionsMatch',
-            [$existing, $desired]
+            'normalizeIndexDefinition',
+            [$existing]
+        );
+        $normalizedDesired = $this->invokeStaticPrivateMethod(
+            DB::class,
+            'normalizeIndexDefinition',
+            [$desired]
         );
 
-        $this->assertSame($expected, $matched);
+        $this->assertSame($expected, $normalizedExisting === $normalizedDesired);
     }
 
     /**
