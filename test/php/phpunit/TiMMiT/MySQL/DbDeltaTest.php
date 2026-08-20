@@ -99,6 +99,31 @@ class DbDeltaTest extends BaseTestCase
                 'KEY `idx_name` (`col_a`)',
                 false,
             ],
+            'quoted identifier named INDEX is not rewritten to KEY' => [
+                'KEY `INDEX` (`col_a`)',
+                'KEY `KEY` (`col_a`)',
+                false,
+            ],
+            'INDEX keyword still matches KEY when the quoted name is INDEX' => [
+                'KEY `INDEX` (`col_a`)',
+                'INDEX `INDEX` (`col_a`)',
+                true,
+            ],
+            'quoted identifier named ASC is not stripped' => [
+                'KEY `ASC` (`col_a`)',
+                'KEY (`col_a`)',
+                false,
+            ],
+            'quoted identifier named USING BTREE is not stripped' => [
+                'KEY `USING BTREE` (`col_a`)',
+                'KEY (`col_a`)',
+                false,
+            ],
+            'quoted identifier with repeated spaces stays distinct' => [
+                'KEY `foo  bar` (`col_a`)',
+                'KEY `foo bar` (`col_a`)',
+                false,
+            ],
         ];
     }
 
