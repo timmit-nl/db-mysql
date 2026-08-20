@@ -1037,9 +1037,11 @@ class DB
 
                     unset($index_string);
                     foreach ($index_strings as $index_string) {
-                        if (!(false === ($aindex = array_search($index_string, $indices, true)))) {
-                            unset($indices[$aindex]);
-                            break;
+                        foreach ($indices as $aindex => $desiredIndex) {
+                            if (self::indexDefinitionsMatch($index_string, $desiredIndex)) {
+                                unset($indices[$aindex]);
+                                break 2;
+                            }
                         }
                     }
                 }
@@ -1073,6 +1075,82 @@ class DB
             }
         }
         return $for_update;
+    }
+
+    /**
+     * Normalize an index definition so semantically identical keys compare equal.
+     *
+     * SQL files and SHOW INDEX format the same key in different ways: spaces after
+     * commas, INDEX vs KEY, optional backticks, extra whitespace, optional USING BTREE,
+     * and optional ASC. dbDelta used to treat those as a change and DROP+ADD the index
+     * on every update.
+     *
+     * Prefix lengths (`col(10)`) are kept, because those are a real schema difference.
+     *
+     * @param string $definition The index definition to normalize.
+     *
+     * @return string
+     */
+    private static function normalizeIndexDefinition(string $definition): string
+    {
+        $normalized = trim($definition);
+
+        $collapsed = preg_replace('/\s+/', ' ', $normalized);
+        if (is_string($collapsed)) {
+            $normalized = $collapsed;
+        }
+
+        $normalized = str_replace('`', '', $normalized);
+
+        $withKeyKeyword = preg_replace('/\bINDEX\b/i', 'KEY', $normalized);
+        if (is_string($withKeyKeyword)) {
+            $normalized = $withKeyKeyword;
+        }
+
+        // Strip optional defaults before collapsing punctuation, otherwise
+        // `) USING BTREE` becomes `)USING BTREE` and the keyword no longer matches.
+        $withoutBtree = preg_replace('/\s+USING\s+BTREE\b/i', '', $normalized);
+        if (is_string($withoutBtree)) {
+            $normalized = $withoutBtree;
+        }
+
+        $withoutAsc = preg_replace('/\s+ASC\b/i', '', $normalized);
+        if (is_string($withoutAsc)) {
+            $normalized = $withoutAsc;
+        }
+
+        $withoutCommaSpace = preg_replace('/\s*,\s*/', ',', $normalized);
+        if (is_string($withoutCommaSpace)) {
+            $normalized = $withoutCommaSpace;
+        }
+
+        $withoutOpenParenSpace = preg_replace('/\s*\(\s*/', '(', $normalized);
+        if (is_string($withoutOpenParenSpace)) {
+            $normalized = $withoutOpenParenSpace;
+        }
+
+        $withoutCloseParenSpace = preg_replace('/\s*\)\s*/', ')', $normalized);
+        if (is_string($withoutCloseParenSpace)) {
+            $normalized = $withoutCloseParenSpace;
+        }
+
+        return strtolower(trim($normalized));
+    }
+
+    /**
+     * Tell whether two index definitions describe the same key.
+     *
+     * The original strings are left untouched for ALTER TABLE; only the comparison
+     * uses the normalized form.
+     *
+     * @param string $existing The definition rebuilt from SHOW INDEX.
+     * @param string $desired  The definition parsed from the CREATE TABLE statement.
+     *
+     * @return bool
+     */
+    private static function indexDefinitionsMatch(string $existing, string $desired): bool
+    {
+        return self::normalizeIndexDefinition($existing) === self::normalizeIndexDefinition($desired);
     }
 
     /**
