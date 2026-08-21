@@ -1313,9 +1313,9 @@ class DB
             1 !== preg_match('/^\s*PRIMARY\s+KEY\b/i', $index)
             && 1 === preg_match('/(?:KEY|INDEX)\s+(?:`([^`]+)`|([A-Za-z0-9_]+))/i', $index, $keyMatch)
         ) {
-            $keyName = $keyMatch[1] ?? '';
-            if ('' === $keyName) {
-                $keyName = $keyMatch[2] ?? '';
+            $keyName = $keyMatch[1];
+            if ('' === $keyName && isset($keyMatch[2])) {
+                $keyName = $keyMatch[2];
             }
             if ('' !== $keyName && isset($existingIndexNames[$keyName])) {
                 $dropClause = "DROP INDEX `{$keyName}`, ";
