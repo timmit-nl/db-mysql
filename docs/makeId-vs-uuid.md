@@ -7,8 +7,11 @@ UUID is the better fit.
 
 ## TL;DR
 
-- `makeId()` (random mode) is cryptographically secure and has **more entropy than a
-  UUIDv4** (~158 vs. 122 bits). For uniqueness and unguessability it is more than enough.
+- `makeId()` (random mode) is cryptographically secure. Entropy is `n × log₂34` and
+  depends on hash mode and default length: ~127 bits for `md5` (25 chars), ~158 bits
+  for `sha1` (31 chars), ~163 bits for the default call (32 chars), ~254 bits for
+  `sha256` (50 chars). All of those exceed a UUIDv4's 122 bits, so uniqueness and
+  unguessability are more than enough.
 - `makeId()` is somewhat slower than `ramsey/uuid` but the absolute cost is negligible
   (sub-2 µs per id; hundreds of thousands per second).
 - `makeId()` has a feature UUIDv4/v7 lack: a **deterministic, seed-based mode** (comparable
@@ -19,9 +22,11 @@ UUID is the better fit.
 
 ## Benchmark
 
-Indicative local run. Numbers vary per machine/run; treat them as orders of magnitude.
+The output below is a separate historical run (PHP 8.4.18, ramsey/uuid 4.9.3),
+not a capture of the current reproduction script. Numbers vary per machine/run;
+treat them as orders of magnitude.
 
-```
+```text
 N=200,000 | PHP 8.4.18 | ramsey/uuid 4.9.3
 
 makeId sha1 (random)              301.5 ms    1.51 us/each  len=31  t0yputmbyn1he1bw42x8v65e2i3hkny
@@ -53,8 +58,8 @@ character from a 34-symbol alphabet. The difference (~1.8x) is irrelevant at the
 
 | Aspect | `makeId()` (random) | UUIDv4 | UUIDv7 |
 |---|---|---|---|
-| Entropy | ~**158 bits** (31 × log₂34) | **122 bits** | ~**74 bits** random + 48 bits time |
-| 50% collision after (birthday bound) | ~2⁷⁹ ≈ 6·10²³ | ~2⁶¹ ≈ 2·10¹⁸ | ~2³⁷ within one ms; effectively unique across time |
+| Entropy | `n × log₂34` at default length: ~**127** (`md5`, 25), ~**158** (`sha1`, 31), ~**163** (default, 32), ~**254** (`sha256`, 50) bits | **122 bits** | ~**74 bits** random + 48 bits time |
+| 50% collision after (birthday bound) | ~2⁶⁴ (`md5`) to ~2¹²⁷ (`sha256`); `sha1` ~2⁷⁹ ≈ 6·10²³ | ~2⁶¹ ≈ 2·10¹⁸ | ~2³⁷ within one ms; effectively unique across time |
 | CSPRNG | yes (`Engine\Secure` / `random_int`) | yes (`random_bytes`) | random part yes, timestamp predictable |
 | Time-sortable | no | no | **yes** (index-friendly) |
 | Format | base34, excludes `l`/`o` | hex + dashes | hex + dashes |
@@ -65,11 +70,12 @@ character from a 34-symbol alphabet. The difference (~1.8x) is irrelevant at the
 
 ## Where `makeId()` holds up well
 
-- **Security / uniqueness:** ~158 bits of CSPRNG entropy, comfortably above UUIDv4. Suitable
-  for unguessable tokens. (UUIDv7 is a poor secret token: predictable timestamp + fewer random
-  bits.)
+- **Security / uniqueness:** CSPRNG entropy of ~127–254 bits at the supported default
+  lengths (e.g. ~158 bits for `sha1` at 31 characters), comfortably above UUIDv4.
+  Suitable for unguessable tokens. (UUIDv7 is a poor secret token: predictable timestamp +
+  fewer random bits.)
 - **Two modes in one function:** random (≈ UUIDv4) *and* deterministic seed-based
-  (≈ UUIDv5/name-based). The codebase uses `makeId($seed)` for idempotent upserts; a plain
+  (≈ UUIDv5/name-based). The codebase uses `DB::makeId('', 1, $seed)` for idempotent upserts; a plain
   random UUID cannot replace that.
 - **No dependency:** works out of the box, no `ramsey/uuid` / `symfony/uid` required.
 
@@ -94,6 +100,10 @@ character from a 34-symbol alphabet. The difference (~1.8x) is irrelevant at the
 
 ## Reproducing the benchmark
 
+This script measures random `makeId()`, seeded `makeId()`, UUIDv4 and UUIDv7,
+including uniqueness counts. It is not expected to recreate the historical
+numbers above (`ramsey/uuid` is unpinned).
+
 ```bash
 mkdir uuidbench && cd uuidbench
 composer require ramsey/uuid
@@ -112,7 +122,8 @@ use TiMMiT\MySQL\DB;
 use Ramsey\Uuid\Uuid;
 
 $N = 200000;
-$bench = static function (string $label, callable $fn) use ($N): void {
+$unique = [];
+$bench = static function (string $label, callable $fn) use ($N, &$unique): void {
     $sample = (string) $fn();
     $t = microtime(true);
     for ($i = 0; $i < $N; $i++) {
@@ -120,9 +131,21 @@ $bench = static function (string $label, callable $fn) use ($N): void {
     }
     $dur = (microtime(true) - $t) * 1000;
     printf("%-30s %8.1f ms  %6.2f us/each  len=%-2d  %s\n", $label, $dur, ($dur * 1000) / $N, strlen($sample), $sample);
+
+    $seen = [];
+    for ($i = 0; $i < $N; $i++) {
+        $seen[(string) $fn()] = true;
+    }
+    $unique[$label] = count($seen);
 };
 
 $bench('makeId sha1 (random)', static fn() => DB::makeId('sha1'));
+$bench('makeId seeded (sha1+suffix)', static fn() => DB::makeId('sha1', 32, bin2hex(random_bytes(16)), 'X'));
 $bench('ramsey UuidV4', static fn() => Uuid::uuid4()->toString());
 $bench('ramsey UuidV7', static fn() => Uuid::uuid7()->toString());
+
+echo "\nUniqueness over {$N}:\n";
+foreach ($unique as $label => $count) {
+    printf("  %s: %s / %s unique\n", $label, number_format($count), number_format($N));
+}
 ```
