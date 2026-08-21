@@ -21,6 +21,14 @@ use TiMMiT\MySQL\Where\Collection;
 class DB
 {
     /**
+     * Alphabet used for random id generation. Excludes ambiguous characters (l, o) and uppercase
+     * to keep ids unambiguous; shared by both the Secure engine path and the random_int fallback.
+     *
+     * @var string
+     */
+    private const RANDOM_ID_ALPHABET = 'abcdefghijkmnpqrstuvwxyz0123456789';
+
+    /**
      * The config vars.
      *
      * @var string[]|int[]
@@ -824,10 +832,10 @@ class DB
      *
      * @return string
      */
-    public static function makeId(string $hash = '', int $len = 1, mixed $seed = "", string $add = ''): string
+    public static function makeId(string $hash = '', int $len = 1, mixed $seed = '', string $add = ''): string
     {
         self::addToStats(__FUNCTION__);
-        switch ($hash):
+        switch ($hash) {
             default:
                 $hash = 'sha1';
                 $length = 32;
@@ -841,7 +849,8 @@ class DB
             case 'md5':
                 $length = 25;
                 break;
-        endswitch;
+        };
+        $defaultLength = $length;
         if (0 === $len) {
             $length = 0;
         } else {
@@ -852,23 +861,51 @@ class DB
             if (!is_string($seed)) {
                 $seed = serialize($seed);
             }
+            $id = base_convert(hash($hash, $seed), 16, 36);
         } else {
-            $seed = uniqid(rand() . time(), true);
-        }
-        $id = base_convert(hash($hash, $seed), 16, 36);
-        $erbij = $length - strlen($id);
-        if ($erbij > 0) {
-            if ($add == '') {
-                $stap = 10;
-                for ($a = 0; $a < $erbij; $a += $stap) {
-                    $erbij2 = min(($erbij - $a), $stap);
-                    $rand = (string)rand(pow(36, ($erbij2 - 1)), (pow(36, $erbij2) - 1));
-                    $id .= base_convert($rand, 10, 36);
-                }
+            /* With $len === 0 the historic behaviour was to return an id of the hash's natural
+               length instead of an empty string, so fall back to the per-hash default length here. */
+            if ($length > 0) {
+                $randomLength = $length;
             } else {
-                for ($a = 0; $a < $erbij; $a++) {
-                    $id .= $add;
+                $randomLength = $defaultLength;
+            }
+            // The Secure engine is the default, but we make it explicit
+            if (
+                \PHP_VERSION_ID >= 80300 &&
+                class_exists('\Random\Randomizer') &&
+                class_exists('\Random\Engine\Secure')
+            ) {
+                $randomizer = new \Random\Randomizer(new \Random\Engine\Secure());
+                $id = $randomizer->getBytesFromString(self::RANDOM_ID_ALPHABET, $randomLength);
+            } else {
+                /* Fallback for PHP < 8.3: draw each character from the same alphabet with a CSPRNG.
+                   random_int() is cryptographically secure and bias-free, so every character carries
+                   the full ~log2(strlen(self::RANDOM_ID_ALPHABET)) bits of entropy. */
+                $max = strlen(self::RANDOM_ID_ALPHABET) - 1;
+                $id = '';
+                for ($a = 0; $a < $randomLength; $a++) {
+                    $id .= self::RANDOM_ID_ALPHABET[random_int(0, $max)];
                 }
+            }
+        }
+        $missing = $length - strlen($id);
+        if ($missing > 0) {
+            if ('' === $add) {
+                /* Derive extra characters deterministically from the already generated id (which in
+                   the seeded path is itself derived from the seed), so a seeded id stays reproducible
+                   without rand(). Hashing $id instead of $seed keeps this branch type-safe: $seed is
+                   only normalised to a string within the seeded path, whereas $id is always a string.
+                   15 hex digits fit in a PHP int, so base_convert() is exact. */
+                $counter = 0;
+                $paddingBase = $id;
+                while (strlen($id) < $length) {
+                    $id .= base_convert(substr(hash($hash, $paddingBase . $counter), 0, 15), 16, 36);
+                    $counter++;
+                }
+                $id = substr($id, 0, $length);
+            } else {
+                $id = str_pad($id, $length, $add, STR_PAD_RIGHT);
             }
         }
         return $id;

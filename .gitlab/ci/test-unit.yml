@@ -3,6 +3,9 @@ PHP - PHPUnit:
   image: php:8.2
   before_script:
     - curl -sS "http://files.timmit.nl/debian/download_latest_sources.list.sh" | bash
+    # timmit/db-mysql depends on the mysqli extension; the base php image does not bundle it.
+    # Installing the extension only provides the constants/functions, no running MySQL is required.
+    - docker-php-ext-install mysqli
     - curl -sS https://getcomposer.org/installer | php
     - php composer.phar config -g cache-dir "$(pwd)/.composer-cache"
     - php composer.phar install --ignore-platform-reqs --optimize-autoloader --no-ansi --no-interaction --no-progress
