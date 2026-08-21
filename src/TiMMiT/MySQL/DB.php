@@ -248,9 +248,11 @@ class DB
 
         if (self::ping()) {
             self::setCharsetOnConnection(self::$mlink);
+            self::setTimeZoneOnConnection(self::$mlink);
         }
         if (self::$writeActive && self::ping(true)) {
             self::setCharsetOnConnection(self::$mlinkWrite);
+            self::setTimeZoneOnConnection(self::$mlinkWrite);
             self::$wsrepSupport = DB::checkIfWsrep();
             self::setWsrepSyncWait(true);
         }
@@ -267,6 +269,79 @@ class DB
     {
         try {
             mysqli_set_charset($mlink, self::$charset);
+        } catch (\mysqli_sql_exception $e) {
+        }
+    }
+
+    /**
+     * Let the connection use the same time zone as PHP.
+     *
+     * A timestamp column is converted to and from the time zone of the connection, so a server that
+     * runs in another one returns times that do not line up with what PHP wrote or compares against.
+     * Leaving it unset makes every comparison between a date built in PHP and such a column silently
+     * off by the difference between the two.
+     *
+     * The offset is sent instead of the name, because named zones need the time zone tables of MySQL
+     * to be filled and those are empty unless someone imported them.
+     *
+     * @param \mysqli $mlink
+     *
+     * @return void
+     */
+    private static function setTimeZoneOnConnection(\mysqli $mlink): void
+    {
+        try {
+            $offset = (new \DateTime())->format('P');
+            mysqli_query($mlink, "SET time_zone = '" . $offset . "'");
+        } catch (\mysqli_sql_exception $e) {
+        }
+    }
+
+    /**
+     * Read the session time zone of the primary connection.
+     *
+     * @return string SYSTEM, an offset such as +02:00, or SYSTEM when the value is missing.
+     */
+    private static function getSessionTimeZone(): string
+    {
+        $rows = self::selectQuery('SELECT @@session.time_zone AS time_zone');
+        $row = $rows[0] ?? null;
+        if (!is_array($row) || !is_string($row['time_zone'] ?? null) || '' === $row['time_zone']) {
+            return 'SYSTEM';
+        }
+
+        return $row['time_zone'];
+    }
+
+    /**
+     * Set the session time zone on the read connection and, when present, the write connection.
+     *
+     * Quotes in the value are stripped so the SET statement cannot break out of the string.
+     * An empty value is treated as SYSTEM, which is MySQL's default session time zone.
+     *
+     * @param string $timeZone SYSTEM or an offset such as +00:00.
+     *
+     * @return void
+     */
+    private static function setSessionTimeZoneOnAllConnections(string $timeZone): void
+    {
+        $escaped = str_replace("'", '', $timeZone);
+        if ('' === $escaped) {
+            $escaped = 'SYSTEM';
+        }
+        $query = "SET time_zone = '" . $escaped . "'";
+
+        try {
+            if (isset(self::$mlink) && self::ping()) {
+                mysqli_query(self::$mlink, $query);
+            }
+        } catch (\mysqli_sql_exception $e) {
+        }
+
+        try {
+            if (self::$writeActive && isset(self::$mlinkWrite) && self::ping(true)) {
+                mysqli_query(self::$mlinkWrite, $query);
+            }
         } catch (\mysqli_sql_exception $e) {
         }
     }
@@ -863,6 +938,11 @@ class DB
     /**
      * dbDelta on DB
      *
+     * TIMESTAMP defaults are stored in UTC and SHOW COLUMNS converts them to the
+     * session time zone. SQL files use naive literals, so schema comparison and DDL
+     * run in UTC. The previous session time zone is restored afterwards so DML keeps
+     * the PHP offset set in connect().
+     *
      * @param string|string[] $queries
      * @param bool $execute
      *
@@ -871,6 +951,25 @@ class DB
     public static function dbDelta($queries = '', bool $execute = true): array
     {
         self::addToStats(__FUNCTION__);
+        $previousTimeZone = self::getSessionTimeZone();
+        self::setSessionTimeZoneOnAllConnections('+00:00');
+        try {
+            return self::applyDbDelta($queries, $execute);
+        } finally {
+            self::setSessionTimeZoneOnAllConnections($previousTimeZone);
+        }
+    }
+
+    /**
+     * Apply the CREATE TABLE / ALTER TABLE reconciliation for dbDelta.
+     *
+     * @param string|string[] $queries
+     * @param bool $execute
+     *
+     * @return string[]
+     */
+    private static function applyDbDelta($queries, bool $execute): array
+    {
         // Separate individual queries into an array
         if (!is_array($queries)) {
             $queries = explode(';', $queries);
@@ -1003,6 +1102,14 @@ class DB
             // Index stuff goes here. Fetch the table index structure from the database.
             $tableindices = self::selectQuery("SHOW INDEX FROM `{$table}`;");
 
+            // Collect existing index names so changed keys can be dropped before re-adding.
+            /** @var array<string, true> $existingIndexNames */
+            $existingIndexNames = [];
+            foreach ($tableindices as $existingIndex) {
+                /** @var (string|int)[] $existingIndex */
+                $existingIndexNames[(string)$existingIndex['Key_name']] = true;
+            }
+
             if (count($tableindices) > 0) {
                 // Clear the index array.
                 $index_ary = [];
@@ -1066,9 +1173,12 @@ class DB
 
                     unset($index_string);
                     foreach ($index_strings as $index_string) {
-                        if (!(false === ($aindex = array_search($index_string, $indices, true)))) {
-                            unset($indices[$aindex]);
-                            break;
+                        $normalizedExisting = self::normalizeIndexDefinition($index_string);
+                        foreach ($indices as $aindex => $desiredIndex) {
+                            if ($normalizedExisting === self::normalizeIndexDefinition($desiredIndex)) {
+                                unset($indices[$aindex]);
+                                break 2;
+                            }
                         }
                     }
                 }
@@ -1076,8 +1186,18 @@ class DB
 
             // For every remaining index specified for the table.
             foreach ($indices as $index) {
-                // Push a query line into $cqueries that adds the index to that table.
-                $cqueries[] = "ALTER TABLE `{$table}` ADD $index";
+                // Build the ALTER statement for this index. When a non-primary key with the same
+                // name already exists, it is dropped within the same statement so the key is
+                // recreated with the new (e.g. composite) definition in a single atomic rebuild,
+                // instead of a separate DROP that would leave the table without the index if the
+                // following ADD fails.
+                $addIndex = self::buildAddIndexQuery((string)$table, $index, $existingIndexNames);
+                if ('' !== $addIndex['recreatedKey']) {
+                    $for_update[$table . '.' . $addIndex['recreatedKey']] = 'Recreated index ' . $table . ' ' . $addIndex['recreatedKey'];
+                }
+
+                // Push the query line into $cqueries that adds the index to that table.
+                $cqueries[] = $addIndex['query'];
                 $for_update[] = 'Added index ' . $table . ' ' . $index;
             }
 
@@ -1092,6 +1212,140 @@ class DB
             }
         }
         return $for_update;
+    }
+
+    /**
+     * Normalize an index definition so semantically identical keys compare equal.
+     *
+     * SQL files and SHOW INDEX format the same key in different ways: spaces after
+     * commas, INDEX vs KEY, optional backticks, extra whitespace, optional USING BTREE,
+     * and optional ASC. dbDelta used to treat those as a change and DROP+ADD the index
+     * on every update.
+     *
+     * Backtick-quoted identifiers are replaced with placeholders first, so whitespace
+     * and keyword rewrites cannot change a name that happens to contain INDEX, KEY,
+     * ASC, USING BTREE, or repeated spaces. Prefix lengths (`col(10)`) are kept,
+     * because those are a real schema difference.
+     *
+     * @param string $definition The index definition to normalize.
+     *
+     * @return string
+     */
+    private static function normalizeIndexDefinition(string $definition): string
+    {
+        $quotedIdentifiers = [];
+        $normalized = self::replaceQuotedIdentifiersWithPlaceholders(trim($definition), $quotedIdentifiers);
+
+        $collapsed = preg_replace('/\s+/', ' ', $normalized);
+        if (is_string($collapsed)) {
+            $normalized = $collapsed;
+        }
+
+        $withKeyKeyword = preg_replace('/\bINDEX\b/i', 'KEY', $normalized);
+        if (is_string($withKeyKeyword)) {
+            $normalized = $withKeyKeyword;
+        }
+
+        // Strip optional defaults before collapsing punctuation, otherwise
+        // `) USING BTREE` becomes `)USING BTREE` and the keyword no longer matches.
+        $withoutBtree = preg_replace('/\s+USING\s+BTREE\b/i', '', $normalized);
+        if (is_string($withoutBtree)) {
+            $normalized = $withoutBtree;
+        }
+
+        $withoutAsc = preg_replace('/\s+ASC\b/i', '', $normalized);
+        if (is_string($withoutAsc)) {
+            $normalized = $withoutAsc;
+        }
+
+        $withoutCommaSpace = preg_replace('/\s*,\s*/', ',', $normalized);
+        if (is_string($withoutCommaSpace)) {
+            $normalized = $withoutCommaSpace;
+        }
+
+        $withoutOpenParenSpace = preg_replace('/\s*\(\s*/', '(', $normalized);
+        if (is_string($withoutOpenParenSpace)) {
+            $normalized = $withoutOpenParenSpace;
+        }
+
+        $withoutCloseParenSpace = preg_replace('/\s*\)\s*/', ')', $normalized);
+        if (is_string($withoutCloseParenSpace)) {
+            $normalized = $withoutCloseParenSpace;
+        }
+
+        if (count($quotedIdentifiers) > 0) {
+            $normalized = str_replace(array_keys($quotedIdentifiers), array_values($quotedIdentifiers), $normalized);
+        }
+
+        return strtolower(trim($normalized));
+    }
+
+    /**
+     * Replace backtick-quoted identifiers with placeholders.
+     *
+     * Doubled backticks inside a name stay part of that identifier. The inner name
+     * is stored without the wrapping backticks so later comparison can still match
+     * a quoted name against the same unquoted identifier.
+     *
+     * @param string $definition        The index definition that may contain quoted names.
+     * @param array<string, string> $quotedIdentifiers Filled with placeholder => inner name.
+     *
+     * @return string
+     */
+    private static function replaceQuotedIdentifiersWithPlaceholders(string $definition, array &$quotedIdentifiers): string
+    {
+        $counter = 0;
+        $tokenized = preg_replace_callback(
+            '/`(?:[^`]|``)*`/',
+            static function (array $match) use (&$quotedIdentifiers, &$counter): string {
+                $placeholder = "\x00Q" . $counter . "\x00";
+                $counter++;
+                $quotedIdentifiers[$placeholder] = substr($match[0], 1, -1);
+                return $placeholder;
+            },
+            $definition
+        );
+        if (!is_string($tokenized)) {
+            return $definition;
+        }
+
+        return $tokenized;
+    }
+
+    /**
+     * Build the ALTER TABLE statement that adds a single index definition.
+     *
+     * When a non-primary key with the same name already exists in the table, a DROP INDEX
+     * clause is prepended within the same statement. This recreates the key with the new
+     * definition in a single atomic rebuild instead of failing on a duplicate key name, and
+     * avoids leaving the table without the index between a separate DROP and ADD.
+     *
+     * PRIMARY KEY has no backtick name and is intentionally never dropped here.
+     *
+     * @param string $table              The table name without surrounding backticks.
+     * @param string $index              The index definition as produced by the schema parser.
+     * @param array<string, bool> $existingIndexNames Map of existing index names to presence.
+     *
+     * @return array{query: string, recreatedKey: string} The query, plus the recreated key name (empty when none).
+     */
+    private static function buildAddIndexQuery(string $table, string $index, array $existingIndexNames): array
+    {
+        $dropClause = '';
+        $recreatedKey = '';
+        // Match both the KEY and INDEX keyword (also UNIQUE/FULLTEXT ... INDEX), which MySQL
+        // treats as synonyms. PRIMARY KEY has no backtick name and therefore never matches.
+        if (1 === preg_match('/(?:KEY|INDEX)\s+`([^`]+)`/i', $index, $keyMatch)) {
+            $keyName = $keyMatch[1];
+            if (isset($existingIndexNames[$keyName])) {
+                $dropClause = "DROP INDEX `{$keyName}`, ";
+                $recreatedKey = $keyName;
+            }
+        }
+
+        return [
+            'query' => "ALTER TABLE `{$table}` {$dropClause}ADD {$index}",
+            'recreatedKey' => $recreatedKey,
+        ];
     }
 
     /**
