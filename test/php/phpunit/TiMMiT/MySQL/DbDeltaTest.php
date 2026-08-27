@@ -229,4 +229,126 @@ class DbDeltaTest extends BaseTestCase
         $this->assertSame('ALTER TABLE `my_table` ADD PRIMARY KEY (`col_a`)', $result['query']);
         $this->assertSame('', $result['recreatedKey']);
     }
+
+    /**
+     * Quoted and unquoted KEY / UNIQUE KEY / INDEX names recreate when they already exist.
+     * PRIMARY KEY forms, including PRIMARY KEY USING BTREE, never drop.
+     *
+     * @dataProvider buildAddIndexQueryDefinitionProvider
+     *
+     * @param string              $index                The index definition from CREATE TABLE.
+     * @param array<string, bool> $existingIndexNames   Map of existing index names to presence.
+     * @param string              $expectedQuery        The expected ALTER TABLE statement.
+     * @param string              $expectedRecreatedKey The recreated key name, or empty.
+     */
+    public function testBuildAddIndexQueryParsesQuotedAndUnquotedNames(
+        string $index,
+        array $existingIndexNames,
+        string $expectedQuery,
+        string $expectedRecreatedKey
+    ): void {
+        $result = $this->invokeStaticPrivateMethod(
+            DB::class,
+            'buildAddIndexQuery',
+            ['my_table', $index, $existingIndexNames]
+        );
+
+        $this->assertSame($expectedQuery, $result['query']);
+        $this->assertSame($expectedRecreatedKey, $result['recreatedKey']);
+    }
+
+    /**
+     * @return array<string, array{string, array<string, bool>, string, string}>
+     */
+    public static function buildAddIndexQueryDefinitionProvider(): array
+    {
+        $existing = [
+            'idx_name' => true,
+            'uniq_name' => true,
+            'col_a' => true,
+            'USING' => true,
+            'PRIMARY' => true,
+        ];
+
+        return [
+            'quoted KEY' => [
+                'KEY `idx_name` (`col_a`)',
+                $existing,
+                'ALTER TABLE `my_table` DROP INDEX `idx_name`, ADD KEY `idx_name` (`col_a`)',
+                'idx_name',
+            ],
+            'unquoted KEY' => [
+                'KEY idx_name (`col_a`)',
+                $existing,
+                'ALTER TABLE `my_table` DROP INDEX `idx_name`, ADD KEY idx_name (`col_a`)',
+                'idx_name',
+            ],
+            'quoted UNIQUE KEY' => [
+                'UNIQUE KEY `uniq_name` (`col_a`)',
+                $existing,
+                'ALTER TABLE `my_table` DROP INDEX `uniq_name`, ADD UNIQUE KEY `uniq_name` (`col_a`)',
+                'uniq_name',
+            ],
+            'unquoted UNIQUE KEY' => [
+                'UNIQUE KEY uniq_name (`col_a`)',
+                $existing,
+                'ALTER TABLE `my_table` DROP INDEX `uniq_name`, ADD UNIQUE KEY uniq_name (`col_a`)',
+                'uniq_name',
+            ],
+            'quoted INDEX' => [
+                'INDEX `idx_name` (`col_a`)',
+                $existing,
+                'ALTER TABLE `my_table` DROP INDEX `idx_name`, ADD INDEX `idx_name` (`col_a`)',
+                'idx_name',
+            ],
+            'unquoted INDEX' => [
+                'INDEX idx_name (`col_a`)',
+                $existing,
+                'ALTER TABLE `my_table` DROP INDEX `idx_name`, ADD INDEX idx_name (`col_a`)',
+                'idx_name',
+            ],
+            'quoted UNIQUE INDEX' => [
+                'UNIQUE INDEX `uniq_name` (`col_a`)',
+                $existing,
+                'ALTER TABLE `my_table` DROP INDEX `uniq_name`, ADD UNIQUE INDEX `uniq_name` (`col_a`)',
+                'uniq_name',
+            ],
+            'unquoted UNIQUE INDEX' => [
+                'UNIQUE INDEX uniq_name (`col_a`)',
+                $existing,
+                'ALTER TABLE `my_table` DROP INDEX `uniq_name`, ADD UNIQUE INDEX uniq_name (`col_a`)',
+                'uniq_name',
+            ],
+            'new unquoted KEY is added without DROP' => [
+                'KEY idx_new (`col_a`)',
+                $existing,
+                'ALTER TABLE `my_table` ADD KEY idx_new (`col_a`)',
+                '',
+            ],
+            'PRIMARY KEY quoted column is not dropped' => [
+                'PRIMARY KEY (`col_a`)',
+                $existing,
+                'ALTER TABLE `my_table` ADD PRIMARY KEY (`col_a`)',
+                '',
+            ],
+            'PRIMARY KEY unquoted column is not dropped' => [
+                'PRIMARY KEY (col_a)',
+                $existing,
+                'ALTER TABLE `my_table` ADD PRIMARY KEY (col_a)',
+                '',
+            ],
+            'PRIMARY KEY USING BTREE quoted is not dropped' => [
+                'PRIMARY KEY USING BTREE (`col_a`)',
+                $existing,
+                'ALTER TABLE `my_table` ADD PRIMARY KEY USING BTREE (`col_a`)',
+                '',
+            ],
+            'PRIMARY KEY USING BTREE unquoted is not dropped' => [
+                'PRIMARY KEY USING BTREE (col_a)',
+                $existing,
+                'ALTER TABLE `my_table` ADD PRIMARY KEY USING BTREE (col_a)',
+                '',
+            ],
+        ];
+    }
 }

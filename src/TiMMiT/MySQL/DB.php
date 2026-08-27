@@ -321,9 +321,9 @@ class DB
      *
      * @param string $timeZone SYSTEM or an offset such as +00:00.
      *
-     * @return void
+     * @return bool True when every required connection accepted the time zone.
      */
-    private static function setSessionTimeZoneOnAllConnections(string $timeZone): void
+    private static function setSessionTimeZoneOnAllConnections(string $timeZone): bool
     {
         $escaped = str_replace("'", '', $timeZone);
         if ('' === $escaped) {
@@ -336,6 +336,7 @@ class DB
                 mysqli_query(self::$mlink, $query);
             }
         } catch (\mysqli_sql_exception $e) {
+            return false;
         }
 
         try {
@@ -343,7 +344,10 @@ class DB
                 mysqli_query(self::$mlinkWrite, $query);
             }
         } catch (\mysqli_sql_exception $e) {
+            return false;
         }
+
+        return true;
     }
 
     /**
@@ -943,17 +947,24 @@ class DB
      * run in UTC. The previous session time zone is restored afterwards so DML keeps
      * the PHP offset set in connect().
      *
+     * When UTC cannot be applied on every required connection, schema comparison is
+     * not run so TIMESTAMP defaults are not rewritten against the PHP offset.
+     *
      * @param string|string[] $queries
      * @param bool $execute
      *
      * @return string[]
+     *
+     * @throws DBException When the UTC session time zone cannot be applied.
      */
     public static function dbDelta($queries = '', bool $execute = true): array
     {
         self::addToStats(__FUNCTION__);
         $previousTimeZone = self::getSessionTimeZone();
-        self::setSessionTimeZoneOnAllConnections('+00:00');
         try {
+            if (!self::setSessionTimeZoneOnAllConnections('+00:00')) {
+                throw new DBException('Could not set session time zone to UTC for dbDelta.');
+            }
             return self::applyDbDelta($queries, $execute);
         } finally {
             self::setSessionTimeZoneOnAllConnections($previousTimeZone);
@@ -1320,7 +1331,7 @@ class DB
      * definition in a single atomic rebuild instead of failing on a duplicate key name, and
      * avoids leaving the table without the index between a separate DROP and ADD.
      *
-     * PRIMARY KEY has no backtick name and is intentionally never dropped here.
+     * PRIMARY KEY forms, including PRIMARY KEY USING BTREE, are never dropped here.
      *
      * @param string $table              The table name without surrounding backticks.
      * @param string $index              The index definition as produced by the schema parser.
@@ -1332,11 +1343,18 @@ class DB
     {
         $dropClause = '';
         $recreatedKey = '';
-        // Match both the KEY and INDEX keyword (also UNIQUE/FULLTEXT ... INDEX), which MySQL
-        // treats as synonyms. PRIMARY KEY has no backtick name and therefore never matches.
-        if (1 === preg_match('/(?:KEY|INDEX)\s+`([^`]+)`/i', $index, $keyMatch)) {
+        // Match KEY and INDEX (also UNIQUE/FULLTEXT ... INDEX) with a quoted or unquoted name.
+        // PRIMARY KEY, including PRIMARY KEY USING BTREE, is skipped so a quoted column or the
+        // USING clause is not mistaken for the index name.
+        if (
+            1 !== preg_match('/^\s*PRIMARY\s+KEY\b/i', $index)
+            && 1 === preg_match('/(?:KEY|INDEX)\s+(?:`([^`]+)`|([A-Za-z0-9_]+))/i', $index, $keyMatch)
+        ) {
             $keyName = $keyMatch[1];
-            if (isset($existingIndexNames[$keyName])) {
+            if ('' === $keyName && isset($keyMatch[2])) {
+                $keyName = $keyMatch[2];
+            }
+            if ('' !== $keyName && isset($existingIndexNames[$keyName])) {
                 $dropClause = "DROP INDEX `{$keyName}`, ";
                 $recreatedKey = $keyName;
             }
