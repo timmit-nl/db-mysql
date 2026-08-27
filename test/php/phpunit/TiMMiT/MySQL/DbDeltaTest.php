@@ -11,11 +11,122 @@ use test\php\phpunit\BaseTestCase;
  * Tests for the index handling in DB::dbDelta().
  *
  * These cover the query building performed by DB::buildAddIndexQuery(), which decides whether a
- * pre-existing key must be dropped (in the same ALTER statement) before it is re-added. The full
- * dbDelta() flow itself cannot be unit tested here because it requires a live database connection.
+ * pre-existing key must be dropped (in the same ALTER statement) before it is re-added, and
+ * DB::normalizeIndexDefinition(), which decides whether an existing index already matches the
+ * CREATE TABLE definition. The full dbDelta() flow itself cannot be unit tested here because it
+ * requires a live database connection.
  */
 class DbDeltaTest extends BaseTestCase
 {
+    /**
+     * Semantically identical index definitions must normalize to the same string.
+     *
+     * @dataProvider indexDefinitionMatchProvider
+     *
+     * @param string $existing The definition rebuilt from SHOW INDEX.
+     * @param string $desired  The definition parsed from CREATE TABLE.
+     * @param bool   $expected Whether the two definitions describe the same key.
+     */
+    public function testNormalizeIndexDefinition(string $existing, string $desired, bool $expected): void
+    {
+        $normalizedExisting = $this->invokeStaticPrivateMethod(
+            DB::class,
+            'normalizeIndexDefinition',
+            [$existing]
+        );
+        $normalizedDesired = $this->invokeStaticPrivateMethod(
+            DB::class,
+            'normalizeIndexDefinition',
+            [$desired]
+        );
+
+        $this->assertSame($expected, $normalizedExisting === $normalizedDesired);
+    }
+
+    /**
+     * @return array<string, array{string, string, bool}>
+     */
+    public static function indexDefinitionMatchProvider(): array
+    {
+        return [
+            'composite key with spaces after commas' => [
+                'KEY `werknemer_dossier_id_volgnummer` (`werknemer_dossier_id`,`volgnummer`)',
+                'KEY `werknemer_dossier_id_volgnummer` (`werknemer_dossier_id`, `volgnummer`)',
+                true,
+            ],
+            'INDEX is a synonym of KEY' => [
+                'KEY `idx_name` (`col_a`)',
+                'INDEX `idx_name` (`col_a`)',
+                true,
+            ],
+            'backticks are optional' => [
+                'KEY `idx_name` (`col_a`,`col_b`)',
+                'KEY idx_name (col_a, col_b)',
+                true,
+            ],
+            'extra whitespace is ignored' => [
+                'KEY `idx_name` (`col_a`,`col_b`)',
+                'KEY  `idx_name`  ( `col_a` ,  `col_b` )',
+                true,
+            ],
+            'USING BTREE is the default and is ignored' => [
+                'KEY `idx_name` (`col_a`)',
+                'KEY `idx_name` (`col_a`) USING BTREE',
+                true,
+            ],
+            'ASC is the default and is ignored' => [
+                'KEY `idx_name` (`col_a`,`col_b`)',
+                'KEY `idx_name` (`col_a` ASC, `col_b` ASC)',
+                true,
+            ],
+            'comparison is case insensitive' => [
+                'KEY `idx_name` (`col_a`)',
+                'key `IDX_NAME` (`COL_A`)',
+                true,
+            ],
+            'added column is a real change' => [
+                'KEY `idx_name` (`col_a`)',
+                'KEY `idx_name` (`col_a`, `col_b`)',
+                false,
+            ],
+            'UNIQUE vs KEY is a real change' => [
+                'KEY `idx_name` (`col_a`)',
+                'UNIQUE KEY `idx_name` (`col_a`)',
+                false,
+            ],
+            'prefix length is a real change' => [
+                'KEY `idx_name` (`col_a`(10))',
+                'KEY `idx_name` (`col_a`)',
+                false,
+            ],
+            'quoted identifier named INDEX is not rewritten to KEY' => [
+                'KEY `INDEX` (`col_a`)',
+                'KEY `KEY` (`col_a`)',
+                false,
+            ],
+            'INDEX keyword still matches KEY when the quoted name is INDEX' => [
+                'KEY `INDEX` (`col_a`)',
+                'INDEX `INDEX` (`col_a`)',
+                true,
+            ],
+            'quoted identifier named ASC is not stripped' => [
+                'KEY `ASC` (`col_a`)',
+                'KEY (`col_a`)',
+                false,
+            ],
+            'quoted identifier named USING BTREE is not stripped' => [
+                'KEY `USING BTREE` (`col_a`)',
+                'KEY (`col_a`)',
+                false,
+            ],
+            'quoted identifier with repeated spaces stays distinct' => [
+                'KEY `foo  bar` (`col_a`)',
+                'KEY `foo bar` (`col_a`)',
+                false,
+            ],
+        ];
+    }
+
     /**
      * A new index (whose name does not exist yet) must be added with a plain ADD and no DROP.
      */
