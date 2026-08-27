@@ -21,6 +21,14 @@ use TiMMiT\MySQL\Where\Collection;
 class DB
 {
     /**
+     * Alphabet used for random id generation. Excludes ambiguous characters (l, o) and uppercase
+     * to keep ids unambiguous; shared by both the Secure engine path and the random_int fallback.
+     *
+     * @var string
+     */
+    private const RANDOM_ID_ALPHABET = 'abcdefghijkmnpqrstuvwxyz0123456789';
+
+    /**
      * The config vars.
      *
      * @var string[]|int[]
@@ -240,9 +248,11 @@ class DB
 
         if (self::ping()) {
             self::setCharsetOnConnection(self::$mlink);
+            self::setTimeZoneOnConnection(self::$mlink);
         }
         if (self::$writeActive && self::ping(true)) {
             self::setCharsetOnConnection(self::$mlinkWrite);
+            self::setTimeZoneOnConnection(self::$mlinkWrite);
             self::$wsrepSupport = DB::checkIfWsrep();
             self::setWsrepSyncWait(true);
         }
@@ -261,6 +271,83 @@ class DB
             mysqli_set_charset($mlink, self::$charset);
         } catch (\mysqli_sql_exception $e) {
         }
+    }
+
+    /**
+     * Let the connection use the same time zone as PHP.
+     *
+     * A timestamp column is converted to and from the time zone of the connection, so a server that
+     * runs in another one returns times that do not line up with what PHP wrote or compares against.
+     * Leaving it unset makes every comparison between a date built in PHP and such a column silently
+     * off by the difference between the two.
+     *
+     * The offset is sent instead of the name, because named zones need the time zone tables of MySQL
+     * to be filled and those are empty unless someone imported them.
+     *
+     * @param \mysqli $mlink
+     *
+     * @return void
+     */
+    private static function setTimeZoneOnConnection(\mysqli $mlink): void
+    {
+        try {
+            $offset = (new \DateTime())->format('P');
+            mysqli_query($mlink, "SET time_zone = '" . $offset . "'");
+        } catch (\mysqli_sql_exception $e) {
+        }
+    }
+
+    /**
+     * Read the session time zone of the primary connection.
+     *
+     * @return string SYSTEM, an offset such as +02:00, or SYSTEM when the value is missing.
+     */
+    private static function getSessionTimeZone(): string
+    {
+        $rows = self::selectQuery('SELECT @@session.time_zone AS time_zone');
+        $row = $rows[0] ?? null;
+        if (!is_array($row) || !is_string($row['time_zone'] ?? null) || '' === $row['time_zone']) {
+            return 'SYSTEM';
+        }
+
+        return $row['time_zone'];
+    }
+
+    /**
+     * Set the session time zone on the read connection and, when present, the write connection.
+     *
+     * Quotes in the value are stripped so the SET statement cannot break out of the string.
+     * An empty value is treated as SYSTEM, which is MySQL's default session time zone.
+     *
+     * @param string $timeZone SYSTEM or an offset such as +00:00.
+     *
+     * @return bool True when every required connection accepted the time zone.
+     */
+    private static function setSessionTimeZoneOnAllConnections(string $timeZone): bool
+    {
+        $escaped = str_replace("'", '', $timeZone);
+        if ('' === $escaped) {
+            $escaped = 'SYSTEM';
+        }
+        $query = "SET time_zone = '" . $escaped . "'";
+
+        try {
+            if (isset(self::$mlink) && self::ping()) {
+                mysqli_query(self::$mlink, $query);
+            }
+        } catch (\mysqli_sql_exception $e) {
+            return false;
+        }
+
+        try {
+            if (self::$writeActive && isset(self::$mlinkWrite) && self::ping(true)) {
+                mysqli_query(self::$mlinkWrite, $query);
+            }
+        } catch (\mysqli_sql_exception $e) {
+            return false;
+        }
+
+        return true;
     }
 
     /**
@@ -754,7 +841,7 @@ class DB
      *
      * @return string
      */
-    public static function makeId(string $hash = '', int $len = 1, mixed $seed = "", string $add = ''): string
+    public static function makeId(string $hash = '', int $len = 1, mixed $seed = '', string $add = ''): string
     {
         self::addToStats(__FUNCTION__);
         switch ($hash) {
@@ -772,6 +859,7 @@ class DB
                 $length = 25;
                 break;
         };
+        $defaultLength = $length;
         if (0 === $len) {
             $length = 0;
         } else {
@@ -782,23 +870,51 @@ class DB
             if (!is_string($seed)) {
                 $seed = serialize($seed);
             }
+            $id = base_convert(hash($hash, $seed), 16, 36);
         } else {
-            $seed = uniqid(rand() . time(), true);
-        }
-        $id = base_convert(hash($hash, $seed), 16, 36);
-        $erbij = $length - strlen($id);
-        if ($erbij > 0) {
-            if ('' === $add) {
-                $stap = 10;
-                for ($a = 0; $a < $erbij; $a += $stap) {
-                    $erbij2 = min(($erbij - $a), $stap);
-                    $rand = (string)rand(pow(36, ($erbij2 - 1)), (pow(36, $erbij2) - 1));
-                    $id .= base_convert($rand, 10, 36);
-                }
+            /* With $len === 0 the historic behaviour was to return an id of the hash's natural
+               length instead of an empty string, so fall back to the per-hash default length here. */
+            if ($length > 0) {
+                $randomLength = $length;
             } else {
-                for ($a = 0; $a < $erbij; $a++) {
-                    $id .= $add;
+                $randomLength = $defaultLength;
+            }
+            // The Secure engine is the default, but we make it explicit
+            if (
+                \PHP_VERSION_ID >= 80300 &&
+                class_exists('\Random\Randomizer') &&
+                class_exists('\Random\Engine\Secure')
+            ) {
+                $randomizer = new \Random\Randomizer(new \Random\Engine\Secure());
+                $id = $randomizer->getBytesFromString(self::RANDOM_ID_ALPHABET, $randomLength);
+            } else {
+                /* Fallback for PHP < 8.3: draw each character from the same alphabet with a CSPRNG.
+                   random_int() is cryptographically secure and bias-free, so every character carries
+                   the full ~log2(strlen(self::RANDOM_ID_ALPHABET)) bits of entropy. */
+                $max = strlen(self::RANDOM_ID_ALPHABET) - 1;
+                $id = '';
+                for ($a = 0; $a < $randomLength; $a++) {
+                    $id .= self::RANDOM_ID_ALPHABET[random_int(0, $max)];
                 }
+            }
+        }
+        $missing = $length - strlen($id);
+        if ($missing > 0) {
+            if ('' === $add) {
+                /* Derive extra characters deterministically from the already generated id (which in
+                   the seeded path is itself derived from the seed), so a seeded id stays reproducible
+                   without rand(). Hashing $id instead of $seed keeps this branch type-safe: $seed is
+                   only normalised to a string within the seeded path, whereas $id is always a string.
+                   15 hex digits fit in a PHP int, so base_convert() is exact. */
+                $counter = 0;
+                $paddingBase = $id;
+                while (strlen($id) < $length) {
+                    $id .= base_convert(substr(hash($hash, $paddingBase . $counter), 0, 15), 16, 36);
+                    $counter++;
+                }
+                $id = substr($id, 0, $length);
+            } else {
+                $id = str_pad($id, $length, $add, STR_PAD_RIGHT);
             }
         }
         return $id;
@@ -831,14 +947,45 @@ class DB
     /**
      * dbDelta on DB
      *
+     * TIMESTAMP defaults are stored in UTC and SHOW COLUMNS converts them to the
+     * session time zone. SQL files use naive literals, so schema comparison and DDL
+     * run in UTC. The previous session time zone is restored afterwards so DML keeps
+     * the PHP offset set in connect().
+     *
+     * When UTC cannot be applied on every required connection, schema comparison is
+     * not run so TIMESTAMP defaults are not rewritten against the PHP offset.
+     *
+     * @param string|string[] $queries
+     * @param bool $execute
+     *
+     * @return string[]
+     *
+     * @throws DBException When the UTC session time zone cannot be applied.
+     */
+    public static function dbDelta($queries = '', bool $execute = true): array
+    {
+        self::addToStats(__FUNCTION__);
+        $previousTimeZone = self::getSessionTimeZone();
+        try {
+            if (!self::setSessionTimeZoneOnAllConnections('+00:00')) {
+                throw new DBException('Could not set session time zone to UTC for dbDelta.');
+            }
+            return self::applyDbDelta($queries, $execute);
+        } finally {
+            self::setSessionTimeZoneOnAllConnections($previousTimeZone);
+        }
+    }
+
+    /**
+     * Apply the CREATE TABLE / ALTER TABLE reconciliation for dbDelta.
+     *
      * @param string|string[] $queries
      * @param bool $execute
      *
      * @return string[]
      */
-    public static function dbDelta($queries = '', bool $execute = true): array
+    private static function applyDbDelta($queries, bool $execute): array
     {
-        self::addToStats(__FUNCTION__);
         // Separate individual queries into an array
         if (!is_array($queries)) {
             $queries = explode(';', $queries);
@@ -1042,9 +1189,12 @@ class DB
 
                     unset($index_string);
                     foreach ($index_strings as $index_string) {
-                        if (!(false === ($aindex = array_search($index_string, $indices, true)))) {
-                            unset($indices[$aindex]);
-                            break;
+                        $normalizedExisting = self::normalizeIndexDefinition($index_string);
+                        foreach ($indices as $aindex => $desiredIndex) {
+                            if ($normalizedExisting === self::normalizeIndexDefinition($desiredIndex)) {
+                                unset($indices[$aindex]);
+                                break 2;
+                            }
                         }
                     }
                 }
@@ -1081,6 +1231,104 @@ class DB
     }
 
     /**
+     * Normalize an index definition so semantically identical keys compare equal.
+     *
+     * SQL files and SHOW INDEX format the same key in different ways: spaces after
+     * commas, INDEX vs KEY, optional backticks, extra whitespace, optional USING BTREE,
+     * and optional ASC. dbDelta used to treat those as a change and DROP+ADD the index
+     * on every update.
+     *
+     * Backtick-quoted identifiers are replaced with placeholders first, so whitespace
+     * and keyword rewrites cannot change a name that happens to contain INDEX, KEY,
+     * ASC, USING BTREE, or repeated spaces. Prefix lengths (`col(10)`) are kept,
+     * because those are a real schema difference.
+     *
+     * @param string $definition The index definition to normalize.
+     *
+     * @return string
+     */
+    private static function normalizeIndexDefinition(string $definition): string
+    {
+        $quotedIdentifiers = [];
+        $normalized = self::replaceQuotedIdentifiersWithPlaceholders(trim($definition), $quotedIdentifiers);
+
+        $collapsed = preg_replace('/\s+/', ' ', $normalized);
+        if (is_string($collapsed)) {
+            $normalized = $collapsed;
+        }
+
+        $withKeyKeyword = preg_replace('/\bINDEX\b/i', 'KEY', $normalized);
+        if (is_string($withKeyKeyword)) {
+            $normalized = $withKeyKeyword;
+        }
+
+        // Strip optional defaults before collapsing punctuation, otherwise
+        // `) USING BTREE` becomes `)USING BTREE` and the keyword no longer matches.
+        $withoutBtree = preg_replace('/\s+USING\s+BTREE\b/i', '', $normalized);
+        if (is_string($withoutBtree)) {
+            $normalized = $withoutBtree;
+        }
+
+        $withoutAsc = preg_replace('/\s+ASC\b/i', '', $normalized);
+        if (is_string($withoutAsc)) {
+            $normalized = $withoutAsc;
+        }
+
+        $withoutCommaSpace = preg_replace('/\s*,\s*/', ',', $normalized);
+        if (is_string($withoutCommaSpace)) {
+            $normalized = $withoutCommaSpace;
+        }
+
+        $withoutOpenParenSpace = preg_replace('/\s*\(\s*/', '(', $normalized);
+        if (is_string($withoutOpenParenSpace)) {
+            $normalized = $withoutOpenParenSpace;
+        }
+
+        $withoutCloseParenSpace = preg_replace('/\s*\)\s*/', ')', $normalized);
+        if (is_string($withoutCloseParenSpace)) {
+            $normalized = $withoutCloseParenSpace;
+        }
+
+        if (count($quotedIdentifiers) > 0) {
+            $normalized = str_replace(array_keys($quotedIdentifiers), array_values($quotedIdentifiers), $normalized);
+        }
+
+        return strtolower(trim($normalized));
+    }
+
+    /**
+     * Replace backtick-quoted identifiers with placeholders.
+     *
+     * Doubled backticks inside a name stay part of that identifier. The inner name
+     * is stored without the wrapping backticks so later comparison can still match
+     * a quoted name against the same unquoted identifier.
+     *
+     * @param string $definition        The index definition that may contain quoted names.
+     * @param array<string, string> $quotedIdentifiers Filled with placeholder => inner name.
+     *
+     * @return string
+     */
+    private static function replaceQuotedIdentifiersWithPlaceholders(string $definition, array &$quotedIdentifiers): string
+    {
+        $counter = 0;
+        $tokenized = preg_replace_callback(
+            '/`(?:[^`]|``)*`/',
+            static function (array $match) use (&$quotedIdentifiers, &$counter): string {
+                $placeholder = "\x00Q" . $counter . "\x00";
+                $counter++;
+                $quotedIdentifiers[$placeholder] = substr($match[0], 1, -1);
+                return $placeholder;
+            },
+            $definition
+        );
+        if (!is_string($tokenized)) {
+            return $definition;
+        }
+
+        return $tokenized;
+    }
+
+    /**
      * Build the ALTER TABLE statement that adds a single index definition.
      *
      * When a non-primary key with the same name already exists in the table, a DROP INDEX
@@ -1088,7 +1336,7 @@ class DB
      * definition in a single atomic rebuild instead of failing on a duplicate key name, and
      * avoids leaving the table without the index between a separate DROP and ADD.
      *
-     * PRIMARY KEY has no backtick name and is intentionally never dropped here.
+     * PRIMARY KEY forms, including PRIMARY KEY USING BTREE, are never dropped here.
      *
      * @param string $table              The table name without surrounding backticks.
      * @param string $index              The index definition as produced by the schema parser.
@@ -1100,11 +1348,18 @@ class DB
     {
         $dropClause = '';
         $recreatedKey = '';
-        // Match both the KEY and INDEX keyword (also UNIQUE/FULLTEXT ... INDEX), which MySQL
-        // treats as synonyms. PRIMARY KEY has no backtick name and therefore never matches.
-        if (1 === preg_match('/(?:KEY|INDEX)\s+`([^`]+)`/i', $index, $keyMatch)) {
+        // Match KEY and INDEX (also UNIQUE/FULLTEXT ... INDEX) with a quoted or unquoted name.
+        // PRIMARY KEY, including PRIMARY KEY USING BTREE, is skipped so a quoted column or the
+        // USING clause is not mistaken for the index name.
+        if (
+            1 !== preg_match('/^\s*PRIMARY\s+KEY\b/i', $index)
+            && 1 === preg_match('/(?:KEY|INDEX)\s+(?:`([^`]+)`|([A-Za-z0-9_]+))/i', $index, $keyMatch)
+        ) {
             $keyName = $keyMatch[1];
-            if (isset($existingIndexNames[$keyName])) {
+            if ('' === $keyName && isset($keyMatch[2])) {
+                $keyName = $keyMatch[2];
+            }
+            if ('' !== $keyName && isset($existingIndexNames[$keyName])) {
                 $dropClause = "DROP INDEX `{$keyName}`, ";
                 $recreatedKey = $keyName;
             }
