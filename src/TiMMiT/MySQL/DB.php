@@ -1001,7 +1001,7 @@ class DB
         // Separate individual queries into an array
         if (!is_array($queries)) {
             $queries = explode(';', $queries);
-            $queries = array_filter($queries, [self, 'checkForEmpty']);
+            $queries = array_filter($queries, [DB::class, 'checkForEmpty']);
         }
 
         /**
