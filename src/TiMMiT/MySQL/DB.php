@@ -979,6 +979,18 @@ class DB
     /**
      * Apply the CREATE TABLE / ALTER TABLE reconciliation for dbDelta.
      *
+     * @param mixed $value
+     *
+     * @return bool
+     */
+    private static function checkForEmpty($value): bool
+    {
+        return empty($value);
+    }
+
+    /**
+     * Apply the CREATE TABLE / ALTER TABLE reconciliation for dbDelta.
+     *
      * @param string|string[] $queries
      * @param bool $execute
      *
@@ -989,7 +1001,7 @@ class DB
         // Separate individual queries into an array
         if (!is_array($queries)) {
             $queries = explode(';', $queries);
-            $queries = array_filter($queries, 'empty');
+            $queries = array_filter($queries, [self, 'checkForEmpty']);
         }
 
         /**
