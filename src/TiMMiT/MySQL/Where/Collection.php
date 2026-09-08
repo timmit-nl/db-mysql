@@ -48,6 +48,13 @@ class Collection implements Iterator, Countable, Stringable
     private bool $ifEmptyThenShowAll = false;
 
     /**
+     * If empty collection and this is true, then show nothing instead of all
+     *
+     * @var bool
+     */
+    private bool $ifEmptyThenShowNothing = false;
+
+    /**
      * contains operator of Collection (AND/OR/NOT)
      *
      * @var string
@@ -85,7 +92,7 @@ class Collection implements Iterator, Countable, Stringable
                 $this->operator = $operator;
                 break;
             default:
-                throw new DBException("Can only use AND,OR,NOT as an operator", 9902);
+                throw new DBException('Can only use AND,OR,NOT and `,` as an operator', 9902);
         }
         return $this;
     }
@@ -100,6 +107,21 @@ class Collection implements Iterator, Countable, Stringable
     public function setIfEmptyThenShowAll(bool $ifEmptyThenShowAll = false): Collection
     {
         $this->ifEmptyThenShowAll = $ifEmptyThenShowAll;
+        $this->ifEmptyThenShowNothing = !$ifEmptyThenShowAll;
+        return $this;
+    }
+
+    /**
+     * ifEmptyThenShowNothing
+     *
+     * @param bool $ifEmptyThenShowNothing
+     *
+     * @return Collection
+     */
+    public function setIfEmptyThenShowNothing(bool $ifEmptyThenShowNothing = false): Collection
+    {
+        $this->ifEmptyThenShowNothing = $ifEmptyThenShowNothing;
+        $this->ifEmptyThenShowAll = !$ifEmptyThenShowNothing;
         return $this;
     }
 
@@ -253,20 +275,45 @@ class Collection implements Iterator, Countable, Stringable
     }
 
     /**
+     * Get the array of the collection as a string.
+     *
+     * @return string[]
+     */
+    private function getArrayAsStrings(): array
+    {
+        $array = [];
+        foreach ($this->array as $item) {
+            $itemTxt = (string)$item;
+            if ('' !== $itemTxt) {
+                $array[] = $itemTxt;
+            }
+        }
+        return $array;
+    }
+
+    /**
      * @inheritDoc
      *
      * @return string
      */
     public function __toString(): string
     {
-        if ((true === $this->ifEmptyThenShowAll) && ($this->count() === 0)) {
-            return "(1=1)";
+        $itemsArray = $this->getArrayAsStrings();
+        $count = count($itemsArray);
+        if (0 === $count) {
+            if ($this->ifEmptyThenShowAll) {
+                return '(1=1)';
+            } elseif ($this->ifEmptyThenShowNothing) {
+                return '(1=0)';
+            } else {
+                return '';
+            }
         } else {
             switch ($this->operator) {
                 case 'NOT':
-                    return 'NOT (' . implode(' AND ', $this->array) . ')';
+                    return 'NOT (' . implode(' AND ', $itemsArray) . ')';
             }
-            return '(' . implode(' ' . $this->operator . ' ', $this->array) . ')';
+            return '(' . implode(' ' . $this->operator . ' ', $itemsArray) . ')';
         }
     }
 }
