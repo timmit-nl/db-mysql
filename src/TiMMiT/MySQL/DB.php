@@ -1078,21 +1078,13 @@ class DB
                     $fieldtype = $matches[1];
                     $columnDef = $cfields[strtolower($tablefield['Field'])];
 
-                    // Column-level charset/collation: parse COLLATE from query column definition (column def uses "COLLATE name", no equals)
-                    $desired_col_collation = null;
-                    if (false !== preg_match('/COLLATE\s+(\w+)/i', $columnDef, $colCollMatch)) {
-                        $desired_col_collation = $colCollMatch[1];
-                    }
+                    // Column-level collation: CREATE TABLE column lines use "COLLATE name" (no equals).
+                    $desired_col_collation = self::parseColumnCollation($columnDef);
                     $current_col_collation = null;
                     if (isset($tablefield['Collation'])) {
                         $current_col_collation = $tablefield['Collation'];
                     }
-                    $collation_differs = false;
-                    if (!is_null($desired_col_collation) && !is_null($current_col_collation)) {
-                        if (strtolower($desired_col_collation) !== strtolower($current_col_collation)) {
-                            $collation_differs = true;
-                        }
-                    }
+                    $collation_differs = self::columnCollationDiffers($desired_col_collation, $current_col_collation);
 
                     // Is actual field type different from the field type in query, or column collation different?
                     if ($tablefield['Type'] !== $fieldtype || $collation_differs) {
@@ -1237,44 +1229,23 @@ class DB
             }
 
             // Charset and collation: parse from CREATE TABLE and compare with existing table.
-            $desired_charset = null;
-            $desired_collation = null;
-            if (false !== preg_match('/DEFAULT\s+CHARSET\s*=\s*(\w+)/i', $qry, $m)) {
-                $desired_charset = $m[1];
-            }
-            if (false !== preg_match_all('/COLLATE\s*=\s*(\w+)/i', $qry, $m) && [] !== $m[1]) {
-                $desired_collation = end($m[1]);
-            }
-            if (!is_null($desired_charset) && !is_null($desired_collation)) {
-                $current_charset = null;
-                $current_collation = null;
+            $desiredTableCharset = self::parseTableCharsetAndCollation($qry);
+            if (!is_null($desiredTableCharset['charset']) && !is_null($desiredTableCharset['collation'])) {
                 $createRows = self::selectQuery('SHOW CREATE TABLE `' . $table . '`;');
-                $firstCreateRow = [];
-                if (isset($createRows[0])) {
-                    $firstCreateRow = $createRows[0];
+                $charsetDelta = self::buildTableCharsetCollationDelta(
+                    (string)$table,
+                    $desiredTableCharset['charset'],
+                    $desiredTableCharset['collation'],
+                    self::extractCreateTableSql($createRows)
+                );
+                if ('' !== $charsetDelta['query']) {
+                    $cqueries[] = $charsetDelta['query'];
                 }
-                $createTable = '';
-                if (is_array($firstCreateRow) && array_key_exists('Create Table', $firstCreateRow)) {
-                    $createTable = (string)$firstCreateRow['Create Table'];
+                if ('' !== $charsetDelta['charsetMessage']) {
+                    $for_update[$table . '.charset'] = $charsetDelta['charsetMessage'];
                 }
-                if ('' !== $createTable) {
-                    if (false !== preg_match('/DEFAULT\s+CHARSET\s*=\s*(\w+)/i', $createTable, $m)) {
-                        $current_charset = $m[1];
-                    }
-                    if (false !== preg_match_all('/COLLATE\s*=\s*(\w+)/i', $createTable, $m) && [] !== $m[1]) {
-                        $current_collation = end($m[1]);
-                    }
-                }
-                $charset_changed = strtolower($desired_charset) !== strtolower((string)$current_charset);
-                $collation_changed = strtolower((string)$desired_collation) !== strtolower((string)$current_collation);
-                if ($charset_changed || $collation_changed) {
-                    $cqueries[] = "ALTER TABLE `{$table}` CONVERT TO CHARACTER SET {$desired_charset} COLLATE {$desired_collation}";
-                    if ($charset_changed) {
-                        $for_update[$table . '.charset'] = 'Changed charset to ' . $desired_charset;
-                    }
-                    if ($collation_changed) {
-                        $for_update[$table . '.collation'] = 'Changed collation to ' . $desired_collation;
-                    }
+                if ('' !== $charsetDelta['collationMessage']) {
+                    $for_update[$table . '.collation'] = $charsetDelta['collationMessage'];
                 }
             }
 
@@ -1289,6 +1260,120 @@ class DB
             }
         }
         return $for_update;
+    }
+
+    /**
+     * Parse table-level DEFAULT CHARSET= and COLLATE= from a CREATE TABLE statement.
+     *
+     * Column-level COLLATE clauses (no equals sign) are ignored. When several
+     * COLLATE= clauses are present, the last one is used, matching the table default
+     * that MySQL emits at the end of SHOW CREATE TABLE.
+     *
+     * @return array{charset: ?string, collation: ?string}
+     */
+    private static function parseTableCharsetAndCollation(string $sql): array
+    {
+        $charset = null;
+        $collation = null;
+        $charsetFound = preg_match('/DEFAULT\s+CHARSET\s*=\s*(\w+)/i', $sql, $charsetMatch);
+        if (false !== $charsetFound && 0 < $charsetFound) {
+            $charset = $charsetMatch[1];
+        }
+        if (false !== preg_match_all('/COLLATE\s*=\s*(\w+)/i', $sql, $collationMatches) && [] !== $collationMatches[1]) {
+            $collation = end($collationMatches[1]);
+        }
+
+        return [
+            'charset' => $charset,
+            'collation' => $collation,
+        ];
+    }
+
+    /**
+     * Parse a column-level COLLATE clause (without equals) from a column definition.
+     */
+    private static function parseColumnCollation(string $columnDef): ?string
+    {
+        $collationFound = preg_match('/COLLATE\s+(\w+)/i', $columnDef, $colCollMatch);
+        if (false !== $collationFound && 0 < $collationFound) {
+            return $colCollMatch[1];
+        }
+
+        return null;
+    }
+
+    /**
+     * Whether a column's desired collation differs from the live table collation.
+     *
+     * Both sides must be present; a missing desired or current collation is not a change.
+     */
+    private static function columnCollationDiffers(?string $desiredCollation, ?string $currentCollation): bool
+    {
+        if (is_null($desiredCollation) || is_null($currentCollation)) {
+            return false;
+        }
+
+        return strtolower($desiredCollation) !== strtolower($currentCollation);
+    }
+
+    /**
+     * Read the CREATE TABLE SQL from a SHOW CREATE TABLE result set.
+     *
+     * @param mixed[] $createRows
+     */
+    private static function extractCreateTableSql(array $createRows): string
+    {
+        $firstCreateRow = [];
+        if (isset($createRows[0])) {
+            $firstCreateRow = $createRows[0];
+        }
+        if (is_array($firstCreateRow) && array_key_exists('Create Table', $firstCreateRow)) {
+            return (string)$firstCreateRow['Create Table'];
+        }
+
+        return '';
+    }
+
+    /**
+     * Build the CONVERT TO CHARACTER SET statement when table charset or collation differs.
+     *
+     * Comparison is case-insensitive. The CONVERT query and messages keep the desired
+     * spelling from the schema file. A change is also reported when the live CREATE
+     * TABLE SQL cannot be parsed, because the current values are then unknown.
+     *
+     * @return array{query: string, charsetMessage: string, collationMessage: string}
+     */
+    private static function buildTableCharsetCollationDelta(
+        string $table,
+        string $desiredCharset,
+        string $desiredCollation,
+        string $currentCreateSql
+    ): array {
+        $current = self::parseTableCharsetAndCollation($currentCreateSql);
+        $charsetChanged = strtolower($desiredCharset) !== strtolower((string)$current['charset']);
+        $collationChanged = strtolower($desiredCollation) !== strtolower((string)$current['collation']);
+        if (!$charsetChanged && !$collationChanged) {
+            return [
+                'query' => '',
+                'charsetMessage' => '',
+                'collationMessage' => '',
+            ];
+        }
+
+        $charsetMessage = '';
+        $collationMessage = '';
+        if ($charsetChanged) {
+            $charsetMessage = 'Changed charset to ' . $desiredCharset;
+        }
+        if ($collationChanged) {
+            $collationMessage = 'Changed collation to ' . $desiredCollation;
+        }
+
+        return [
+            'query' => "ALTER TABLE `{$table}` CONVERT TO CHARACTER SET {$desiredCharset} COLLATE {$desiredCollation}",
+            'charsetMessage' => $charsetMessage,
+            'collationMessage' => $collationMessage,
+        ];
     }
 
     /**
