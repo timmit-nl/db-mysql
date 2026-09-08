@@ -1269,6 +1269,8 @@ class DB
      * COLLATE= clauses are present, the last one is used, matching the table default
      * that MySQL emits at the end of SHOW CREATE TABLE.
      *
+     * @param string $sql The CREATE TABLE statement or SHOW CREATE TABLE SQL.
+     *
      * @return array{charset: ?string, collation: ?string}
      */
     private static function parseTableCharsetAndCollation(string $sql): array
@@ -1291,6 +1293,10 @@ class DB
 
     /**
      * Parse a column-level COLLATE clause (without equals) from a column definition.
+     *
+     * @param string $columnDef The column definition line from CREATE TABLE.
+     *
+     * @return string|null The collation name, or null when the column has no COLLATE clause.
      */
     private static function parseColumnCollation(string $columnDef): ?string
     {
@@ -1306,6 +1312,11 @@ class DB
      * Whether a column's desired collation differs from the live table collation.
      *
      * Both sides must be present; a missing desired or current collation is not a change.
+     *
+     * @param string|null $desiredCollation The COLLATE name from the schema column definition.
+     * @param string|null $currentCollation The Collation value from SHOW FULL COLUMNS.
+     *
+     * @return bool
      */
     private static function columnCollationDiffers(?string $desiredCollation, ?string $currentCollation): bool
     {
@@ -1319,7 +1330,9 @@ class DB
     /**
      * Read the CREATE TABLE SQL from a SHOW CREATE TABLE result set.
      *
-     * @param mixed[] $createRows
+     * @param mixed[] $createRows The rows returned by SHOW CREATE TABLE.
+     *
+     * @return string The Create Table SQL, or an empty string when it cannot be read.
      */
     private static function extractCreateTableSql(array $createRows): string
     {
@@ -1340,6 +1353,11 @@ class DB
      * Comparison is case-insensitive. The CONVERT query and messages keep the desired
      * spelling from the schema file. A change is also reported when the live CREATE
      * TABLE SQL cannot be parsed, because the current values are then unknown.
+     *
+     * @param string $table            The table name without surrounding backticks.
+     * @param string $desiredCharset   The DEFAULT CHARSET from the schema CREATE TABLE.
+     * @param string $desiredCollation The table COLLATE= from the schema CREATE TABLE.
+     * @param string $currentCreateSql The live SHOW CREATE TABLE SQL.
      *
      * @return array{query: string, charsetMessage: string, collationMessage: string}
      */
