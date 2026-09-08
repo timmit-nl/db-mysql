@@ -1039,7 +1039,7 @@ class DB
             // Fetch the table column structure from the database
             $tablefields = self::getColumnsOfTable((string)$table);
 
-            if (count($tablefields) === 0) {
+            if (0 === count($tablefields)) {
                 continue;
             }
 
