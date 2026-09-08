@@ -1242,7 +1242,7 @@ class DB
             if (false !== preg_match('/DEFAULT\s+CHARSET\s*=\s*(\w+)/i', $qry, $m)) {
                 $desired_charset = $m[1];
             }
-            if (false !== preg_match_all('/COLLATE\s*=\s*(\w+)/i', $qry, $m) && !empty($m[1])) {
+            if (false !== preg_match_all('/COLLATE\s*=\s*(\w+)/i', $qry, $m) && '' !== ($m[1] ?? '')) {
                 $desired_collation = end($m[1]);
             }
             if (!is_null($desired_charset) && !is_null($desired_collation)) {
@@ -1261,7 +1261,7 @@ class DB
                     if (false !== preg_match('/DEFAULT\s+CHARSET\s*=\s*(\w+)/i', $createTable, $m)) {
                         $current_charset = $m[1];
                     }
-                    if (false !== preg_match_all('/COLLATE\s*=\s*(\w+)/i', $createTable, $m) && !empty($m[1])) {
+                    if (false !== preg_match_all('/COLLATE\s*=\s*(\w+)/i', $createTable, $m) && '' !== ($m[1] ?? '')) {
                         $current_collation = end($m[1]);
                     }
                 }
