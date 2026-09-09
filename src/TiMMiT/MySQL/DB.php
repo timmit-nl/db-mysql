@@ -1400,11 +1400,11 @@ class DB
      * Callers must queue this CONVERT before CHANGE/ADD COLUMN. CONVERT overwrites
      * per-column collations, so explicit COLLATE clauses have to be applied after it.
      *
-     * @param string      $table             The table name without surrounding backticks.
-     * @param string      $desiredCharset    The DEFAULT CHARSET from the schema CREATE TABLE.
-     * @param string      $desiredCollation  The table COLLATE= from the schema CREATE TABLE.
-     * @param string|null $currentCharset    The live table character set, if known.
-     * @param string|null $currentCollation  The live table collation, if known.
+     * @param string      $table            The table name without surrounding backticks.
+     * @param string      $desiredCharset   The DEFAULT CHARSET from the schema CREATE TABLE.
+     * @param string      $desiredCollation The table COLLATE= from the schema CREATE TABLE.
+     * @param string|null $currentCharset   The live table character set, if known.
+     * @param string|null $currentCollation The live table collation, if known.
      *
      * @return array{query: string, charsetMessage: string, collationMessage: string}
      */
