@@ -1065,6 +1065,32 @@ class DB
                 }
             }
 
+            // Queue CONVERT TO before CHANGE/ADD COLUMN. CONVERT applies the table
+            // collation to every character column and would undo explicit COLLATE
+            // clauses if it ran last.
+            $tableCharsetConvertQueued = false;
+            $desiredTable = self::parseTableCharsetAndCollation($qry);
+            if (!is_null($desiredTable['charset']) && !is_null($desiredTable['collation'])) {
+                $currentCreateSql = self::extractCreateTableSql(self::selectQuery("SHOW CREATE TABLE `{$table}`;"));
+                $charsetDelta = self::buildTableCharsetCollationDelta(
+                    (string)$table,
+                    $desiredTable['charset'],
+                    $desiredTable['collation'],
+                    $currentCreateSql
+                );
+
+                $tableCharsetConvertQueued = '' !== $charsetDelta['query'];
+                if ($tableCharsetConvertQueued) {
+                    $cqueries[] = $charsetDelta['query'];
+                }
+                if ('' !== $charsetDelta['charsetMessage']) {
+                    $for_update[$table . '.charset'] = $charsetDelta['charsetMessage'];
+                }
+                if ('' !== $charsetDelta['collationMessage']) {
+                    $for_update[$table . '.collation'] = $charsetDelta['collationMessage'];
+                }
+            }
+
             // For every field in the table.
             foreach ($tablefields as $tablefield) {
                 /** @var string[]*/
@@ -1079,21 +1105,23 @@ class DB
                     $columnDef = $cfields[strtolower($tablefield['Field'])];
 
                     // Column-level collation: CREATE TABLE column lines use "COLLATE name" (no equals).
-                    $desired_col_collation = self::parseColumnCollation($columnDef);
-                    $current_col_collation = null;
-                    if (isset($tablefield['Collation'])) {
-                        $current_col_collation = $tablefield['Collation'];
-                    }
-                    $collation_differs = self::columnCollationDiffers($desired_col_collation, $current_col_collation);
+                    $desiredColumnCollation = self::parseColumnCollation($columnDef);
+                    $currentColumnCollation = $tablefield['Collation'] ?? null;
+                    $collationDiffers = self::columnCollationDiffers($desiredColumnCollation, $currentColumnCollation);
+
+                    // The queued CONVERT overwrites this column's collation with the table
+                    // collation, so an explicit COLLATE has to be re-applied even when it
+                    // already matches; otherwise the next dbDelta() would have to repair it.
+                    $reapplyExplicitCollation = $tableCharsetConvertQueued && !is_null($desiredColumnCollation);
 
                     // Is actual field type different from the field type in query, or column collation different?
-                    if ($tablefield['Type'] !== $fieldtype || $collation_differs) {
+                    if ($tablefield['Type'] !== $fieldtype || $collationDiffers || $reapplyExplicitCollation) {
                         $cqueries[] = "ALTER TABLE `{$table}` CHANGE COLUMN `{$tablefield['Field']}` " . $columnDef;
                         if ($tablefield['Type'] !== $fieldtype) {
                             $for_update[$table . '.' . $tablefield['Field']] = "Changed type of {$table}.{$tablefield['Field']} from {$tablefield['Type']} to {$fieldtype}";
                         }
-                        if ($collation_differs) {
-                            $for_update[$table . '.' . $tablefield['Field'] . '.collation'] = 'Changed collation to ' . $desired_col_collation;
+                        if ($collationDiffers) {
+                            $for_update[$table . '.' . $tablefield['Field'] . '.collation'] = 'Changed collation to ' . $desiredColumnCollation;
                         }
                     }
 
@@ -1232,27 +1260,6 @@ class DB
                 $for_update[] = 'Added index ' . $table . ' ' . $index;
             }
 
-            // Charset and collation: parse from CREATE TABLE and compare with existing table.
-            $desiredTableCharset = self::parseTableCharsetAndCollation($qry);
-            if (!is_null($desiredTableCharset['charset']) && !is_null($desiredTableCharset['collation'])) {
-                $createRows = self::selectQuery('SHOW CREATE TABLE `' . $table . '`;');
-                $charsetDelta = self::buildTableCharsetCollationDelta(
-                    (string)$table,
-                    $desiredTableCharset['charset'],
-                    $desiredTableCharset['collation'],
-                    self::extractCreateTableSql($createRows)
-                );
-                if ('' !== $charsetDelta['query']) {
-                    $cqueries[] = $charsetDelta['query'];
-                }
-                if ('' !== $charsetDelta['charsetMessage']) {
-                    $for_update[$table . '.charset'] = $charsetDelta['charsetMessage'];
-                }
-                if ('' !== $charsetDelta['collationMessage']) {
-                    $for_update[$table . '.collation'] = $charsetDelta['collationMessage'];
-                }
-            }
-
             // Remove the original table creation query from processing.
             unset($cqueries[$table], $for_update[$table]);
         }
@@ -1357,6 +1364,9 @@ class DB
      * Comparison is case-insensitive. The CONVERT query and messages keep the desired
      * spelling from the schema file. A change is also reported when the live CREATE
      * TABLE SQL cannot be parsed, because the current values are then unknown.
+     *
+     * Callers must queue this CONVERT before CHANGE/ADD COLUMN. CONVERT overwrites
+     * per-column collations, so explicit COLLATE clauses have to be applied after it.
      *
      * @param string $table            The table name without surrounding backticks.
      * @param string $desiredCharset   The DEFAULT CHARSET from the schema CREATE TABLE.
