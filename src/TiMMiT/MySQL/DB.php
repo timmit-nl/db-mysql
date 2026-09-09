@@ -1145,9 +1145,12 @@ class DB
                     // Add the index to the index data array.
                     $keyname = $tableindex['Key_name'];
 
-                    /** @var string[] */
-                    $columns = ['fieldname' => $tableindex['Column_name'], 'subpart' => $tableindex['Sub_part']];
-                    $index_ary[$keyname]['columns'][] = $columns;
+                    /** @var array{fieldname: string, subpart: string|int|null} $column */
+                    $column = [
+                        'fieldname' => $tableindex['Column_name'],
+                        'subpart' => $tableindex['Sub_part'],
+                    ];
+                    $index_ary[$keyname]['columns'][] = $column;
                     $index_ary[$keyname]['unique'] = false;
                     if (0 == $tableindex['Non_unique']) {
                         $index_ary[$keyname]['unique'] = true;
@@ -1182,8 +1185,9 @@ class DB
 
                         // Add the field to the column list string.
                         $index_columns .= "`" . $column_data['fieldname'] . "`";
-                        if ('' !== $column_data['subpart']) {
-                            $index_columns .= '(' . $column_data['subpart'] . ')';
+                        $subpart = (string)$column_data['subpart'];
+                        if ('' !== $subpart) {
+                            $index_columns .= '(' . $subpart . ')';
                         }
                     }
 
