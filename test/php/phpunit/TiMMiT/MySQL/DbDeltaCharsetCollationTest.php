@@ -10,9 +10,10 @@ use test\php\phpunit\BaseTestCase;
 /**
  * Tests for charset and collation detection in DB::dbDelta().
  *
- * Table-level DEFAULT CHARSET= / COLLATE= comparison and column-level COLLATE
- * (no equals) comparison live in private helpers so they can be exercised without
- * a live database. The full applyDbDelta() flow still needs a connection.
+ * Table-level DEFAULT CHARSET= / COLLATE= comparison, column-level COLLATE
+ * (no equals) comparison, and resolved information_schema metadata live in
+ * private helpers so they can be exercised without a live database. The full
+ * applyDbDelta() flow still needs a connection.
  */
 class DbDeltaCharsetCollationTest extends BaseTestCase
 {
@@ -43,15 +44,6 @@ class DbDeltaCharsetCollationTest extends BaseTestCase
         );
     }
 
-    private function extractCreateTableSql(array $createRows): string
-    {
-        return $this->invokeStaticPrivateMethod(
-            DB::class,
-            'extractCreateTableSql',
-            [$createRows]
-        );
-    }
-
     /**
      * @return array{query: string, charsetMessage: string, collationMessage: string}
      */
@@ -59,12 +51,25 @@ class DbDeltaCharsetCollationTest extends BaseTestCase
         string $table,
         string $desiredCharset,
         string $desiredCollation,
-        string $currentCreateSql
+        ?string $currentCharset,
+        ?string $currentCollation
     ): array {
         return $this->invokeStaticPrivateMethod(
             DB::class,
             'buildTableCharsetCollationDelta',
-            [$table, $desiredCharset, $desiredCollation, $currentCreateSql]
+            [$table, $desiredCharset, $desiredCollation, $currentCharset, $currentCollation]
+        );
+    }
+
+    /**
+     * @return array{charset: ?string, collation: ?string}
+     */
+    private function tableCharsetAndCollationFromRow(mixed $row): array
+    {
+        return $this->invokeStaticPrivateMethod(
+            DB::class,
+            'tableCharsetAndCollationFromRow',
+            [$row]
         );
     }
 
@@ -264,255 +269,236 @@ class DbDeltaCharsetCollationTest extends BaseTestCase
     }
 
     /**
-     * @dataProvider extractCreateTableSqlProvider
+     * @dataProvider tableCharsetCollationDeltaProvider
      *
-     * @param mixed[] $createRows
+     * @param array{query: string, charsetMessage: string, collationMessage: string} $expected
      */
-    public function testExtractCreateTableSql(array $createRows, string $expected): void
-    {
-        $this->assertSame($expected, $this->extractCreateTableSql($createRows));
+    public function testBuildTableCharsetCollationDelta(
+        string $table,
+        string $desiredCharset,
+        string $desiredCollation,
+        ?string $currentCharset,
+        ?string $currentCollation,
+        array $expected
+    ): void {
+        $this->assertSame(
+            $expected,
+            $this->buildTableCharsetCollationDelta(
+                $table,
+                $desiredCharset,
+                $desiredCollation,
+                $currentCharset,
+                $currentCollation
+            )
+        );
     }
 
     /**
-     * @return array<string, array{mixed[], string}>
+     * @return array<string, array{
+     *     string,
+     *     string,
+     *     string,
+     *     ?string,
+     *     ?string,
+     *     array{query: string, charsetMessage: string, collationMessage: string}
+     * }>
      */
-    public static function extractCreateTableSqlProvider(): array
+    public static function tableCharsetCollationDeltaProvider(): array
     {
-        $sql = "CREATE TABLE `items` (\n  `id` int NOT NULL\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
+        $convert = static function (
+            string $table,
+            string $charset,
+            string $collation
+        ): string {
+            return "ALTER TABLE `{$table}` CONVERT TO CHARACTER SET {$charset} COLLATE {$collation}";
+        };
+        $empty = [
+            'query' => '',
+            'charsetMessage' => '',
+            'collationMessage' => '',
+        ];
+        $utf8mb4Unicode = $convert('items', 'utf8mb4', 'utf8mb4_unicode_ci');
 
         return [
-            'standard SHOW CREATE TABLE row' => [
+            'no change when charset and collation match' => [
+                'items',
+                'utf8mb4',
+                'utf8mb4_unicode_ci',
+                'utf8mb4',
+                'utf8mb4_unicode_ci',
+                $empty,
+            ],
+            'no change when only letter case differs' => [
+                'items',
+                'utf8mb4',
+                'utf8mb4_unicode_ci',
+                'UTF8MB4',
+                'UTF8MB4_UNICODE_CI',
+                $empty,
+            ],
+            'charset-only change emits CONVERT and charset message' => [
+                'items',
+                'utf8mb4',
+                'utf8mb4_unicode_ci',
+                'latin1',
+                'utf8mb4_unicode_ci',
                 [
-                    [
-                        'Table' => 'items',
-                        'Create Table' => $sql,
-                    ],
+                    'query' => $utf8mb4Unicode,
+                    'charsetMessage' => 'Changed charset to utf8mb4',
+                    'collationMessage' => '',
                 ],
-                $sql,
             ],
-            'empty result set' => [
-                [],
-                '',
-            ],
-            'row without Create Table key' => [
+            'collation-only change emits CONVERT and collation message' => [
+                'items',
+                'utf8mb4',
+                'utf8mb4_unicode_ci',
+                'utf8mb4',
+                'utf8mb4_general_ci',
                 [
-                    ['Table' => 'items'],
+                    'query' => $utf8mb4Unicode,
+                    'charsetMessage' => '',
+                    'collationMessage' => 'Changed collation to utf8mb4_unicode_ci',
                 ],
-                '',
             ],
-            'Create Table is an empty string' => [
+            'both charset and collation change' => [
+                'items',
+                'utf8mb4',
+                'utf8mb4_unicode_ci',
+                'latin1',
+                'latin1_swedish_ci',
                 [
-                    ['Create Table' => ''],
+                    'query' => $utf8mb4Unicode,
+                    'charsetMessage' => 'Changed charset to utf8mb4',
+                    'collationMessage' => 'Changed collation to utf8mb4_unicode_ci',
                 ],
-                '',
             ],
-            'first row is not an array' => [
-                ['not-an-array'],
-                '',
-            ],
-            'later rows are ignored' => [
+            'unknown current charset and collation still emit CONVERT' => [
+                'items',
+                'utf8mb4',
+                'utf8mb4_unicode_ci',
+                null,
+                null,
                 [
-                    ['Create Table' => 'first'],
-                    ['Create Table' => 'second'],
+                    'query' => $utf8mb4Unicode,
+                    'charsetMessage' => 'Changed charset to utf8mb4',
+                    'collationMessage' => 'Changed collation to utf8mb4_unicode_ci',
                 ],
-                'first',
             ],
-            'numeric Create Table is cast to string' => [
+            'missing current collation is a collation change' => [
+                'items',
+                'utf8mb4',
+                'utf8mb4_unicode_ci',
+                'utf8mb4',
+                null,
                 [
-                    ['Create Table' => 0],
+                    'query' => $utf8mb4Unicode,
+                    'charsetMessage' => '',
+                    'collationMessage' => 'Changed collation to utf8mb4_unicode_ci',
                 ],
-                '0',
+            ],
+            'missing current charset is a charset change' => [
+                'items',
+                'utf8mb4',
+                'utf8mb4_unicode_ci',
+                null,
+                'utf8mb4_unicode_ci',
+                [
+                    'query' => $utf8mb4Unicode,
+                    'charsetMessage' => 'Changed charset to utf8mb4',
+                    'collationMessage' => '',
+                ],
+            ],
+            'CONVERT keeps desired spelling and backticks the table' => [
+                'Order Items',
+                'UTF8MB4',
+                'UTF8MB4_UNICODE_CI',
+                'latin1',
+                'latin1_swedish_ci',
+                [
+                    'query' => $convert('Order Items', 'UTF8MB4', 'UTF8MB4_UNICODE_CI'),
+                    'charsetMessage' => 'Changed charset to UTF8MB4',
+                    'collationMessage' => 'Changed collation to UTF8MB4_UNICODE_CI',
+                ],
             ],
         ];
     }
 
-    public function testNoDeltaWhenCharsetAndCollationMatch(): void
+    /**
+     * SHOW CREATE TABLE may omit COLLATE= when it is the charset default. Resolved
+     * metadata still has that collation, so dbDelta must not CONVERT every run.
+     */
+    public function testCharsetDefaultCollationFromResolvedMetadataIsNotAChange(): void
     {
-        $current = $this->showCreateTableSql('utf8mb4', 'utf8mb4_unicode_ci');
+        $current = $this->tableCharsetAndCollationFromRow([
+            'charset' => 'utf8mb4',
+            'collation' => 'utf8mb4_unicode_ci',
+        ]);
         $delta = $this->buildTableCharsetCollationDelta(
             'items',
             'utf8mb4',
             'utf8mb4_unicode_ci',
-            $current
+            $current['charset'],
+            $current['collation']
         );
 
         $this->assertSame('', $delta['query']);
-        $this->assertSame('', $delta['charsetMessage']);
-        $this->assertSame('', $delta['collationMessage']);
     }
 
-    public function testNoDeltaWhenOnlyLetterCaseDiffers(): void
+    /**
+     * @dataProvider informationSchemaRowProvider
+     *
+     * @param mixed $row
+     */
+    public function testTableCharsetAndCollationFromRow(mixed $row, ?string $expectedCharset, ?string $expectedCollation): void
     {
-        $current = $this->showCreateTableSql('UTF8MB4', 'UTF8MB4_UNICODE_CI');
-        $delta = $this->buildTableCharsetCollationDelta(
-            'items',
-            'utf8mb4',
-            'utf8mb4_unicode_ci',
-            $current
-        );
+        $parsed = $this->tableCharsetAndCollationFromRow($row);
 
-        $this->assertSame('', $delta['query']);
-        $this->assertSame('', $delta['charsetMessage']);
-        $this->assertSame('', $delta['collationMessage']);
+        $this->assertSame($expectedCharset, $parsed['charset']);
+        $this->assertSame($expectedCollation, $parsed['collation']);
     }
 
-    public function testCharsetOnlyChangeEmitsConvertAndCharsetMessage(): void
+    /**
+     * @return array<string, array{mixed, ?string, ?string}>
+     */
+    public static function informationSchemaRowProvider(): array
     {
-        $current = $this->showCreateTableSql('latin1', 'utf8mb4_unicode_ci');
-        $delta = $this->buildTableCharsetCollationDelta(
-            'items',
-            'utf8mb4',
-            'utf8mb4_unicode_ci',
-            $current
-        );
-
-        $this->assertSame(
-            'ALTER TABLE `items` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci',
-            $delta['query']
-        );
-        $this->assertSame('Changed charset to utf8mb4', $delta['charsetMessage']);
-        $this->assertSame('', $delta['collationMessage']);
-    }
-
-    public function testCollationOnlyChangeEmitsConvertAndCollationMessage(): void
-    {
-        $current = $this->showCreateTableSql('utf8mb4', 'utf8mb4_general_ci');
-        $delta = $this->buildTableCharsetCollationDelta(
-            'items',
-            'utf8mb4',
-            'utf8mb4_unicode_ci',
-            $current
-        );
-
-        $this->assertSame(
-            'ALTER TABLE `items` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci',
-            $delta['query']
-        );
-        $this->assertSame('', $delta['charsetMessage']);
-        $this->assertSame('Changed collation to utf8mb4_unicode_ci', $delta['collationMessage']);
-    }
-
-    public function testBothCharsetAndCollationChange(): void
-    {
-        $current = $this->showCreateTableSql('latin1', 'latin1_swedish_ci');
-        $delta = $this->buildTableCharsetCollationDelta(
-            'items',
-            'utf8mb4',
-            'utf8mb4_unicode_ci',
-            $current
-        );
-
-        $this->assertSame(
-            'ALTER TABLE `items` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci',
-            $delta['query']
-        );
-        $this->assertSame('Changed charset to utf8mb4', $delta['charsetMessage']);
-        $this->assertSame('Changed collation to utf8mb4_unicode_ci', $delta['collationMessage']);
-    }
-
-    public function testUnknownCurrentTableIsTreatedAsAChange(): void
-    {
-        $delta = $this->buildTableCharsetCollationDelta(
-            'items',
-            'utf8mb4',
-            'utf8mb4_unicode_ci',
-            ''
-        );
-
-        $this->assertSame(
-            'ALTER TABLE `items` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci',
-            $delta['query']
-        );
-        $this->assertSame('Changed charset to utf8mb4', $delta['charsetMessage']);
-        $this->assertSame('Changed collation to utf8mb4_unicode_ci', $delta['collationMessage']);
-    }
-
-    public function testCurrentCharsetWithoutCollationIsACollationChange(): void
-    {
-        $delta = $this->buildTableCharsetCollationDelta(
-            'items',
-            'utf8mb4',
-            'utf8mb4_unicode_ci',
-            'DEFAULT CHARSET=utf8mb4'
-        );
-
-        $this->assertSame(
-            'ALTER TABLE `items` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci',
-            $delta['query']
-        );
-        $this->assertSame('', $delta['charsetMessage']);
-        $this->assertSame('Changed collation to utf8mb4_unicode_ci', $delta['collationMessage']);
-    }
-
-    public function testCurrentCollationWithoutCharsetIsACharsetChange(): void
-    {
-        $delta = $this->buildTableCharsetCollationDelta(
-            'items',
-            'utf8mb4',
-            'utf8mb4_unicode_ci',
-            'COLLATE=utf8mb4_unicode_ci'
-        );
-
-        $this->assertSame(
-            'ALTER TABLE `items` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci',
-            $delta['query']
-        );
-        $this->assertSame('Changed charset to utf8mb4', $delta['charsetMessage']);
-        $this->assertSame('', $delta['collationMessage']);
-    }
-
-    public function testConvertQueryKeepsDesiredSpellingAndBackticksTheTable(): void
-    {
-        $current = $this->showCreateTableSql('latin1', 'latin1_swedish_ci');
-        $delta = $this->buildTableCharsetCollationDelta(
-            'Order Items',
-            'UTF8MB4',
-            'UTF8MB4_UNICODE_CI',
-            $current
-        );
-
-        $this->assertSame(
-            'ALTER TABLE `Order Items` CONVERT TO CHARACTER SET UTF8MB4 COLLATE UTF8MB4_UNICODE_CI',
-            $delta['query']
-        );
-        $this->assertSame('Changed charset to UTF8MB4', $delta['charsetMessage']);
-        $this->assertSame('Changed collation to UTF8MB4_UNICODE_CI', $delta['collationMessage']);
-    }
-
-    public function testColumnCollateInShowCreateTableDoesNotCountAsTableCollation(): void
-    {
-        $current = <<<'SQL'
-CREATE TABLE `items` (
-  `name` varchar(255) COLLATE utf8mb4_bin NOT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-SQL;
-        $delta = $this->buildTableCharsetCollationDelta(
-            'items',
-            'utf8mb4',
-            'utf8mb4_unicode_ci',
-            $current
-        );
-
-        $this->assertSame('', $delta['query']);
-        $this->assertSame('', $delta['charsetMessage']);
-        $this->assertSame('', $delta['collationMessage']);
-    }
-
-    public function testMismatchedColumnCollateEqualsDoesNotOverrideTableDefaultWhenLast(): void
-    {
-        $current = <<<'SQL'
-CREATE TABLE `items` (
-  `name` varchar(255) COLLATE=utf8mb4_bin NOT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-SQL;
-        $delta = $this->buildTableCharsetCollationDelta(
-            'items',
-            'utf8mb4',
-            'utf8mb4_unicode_ci',
-            $current
-        );
-
-        $this->assertSame('', $delta['query'], 'The last COLLATE= is the table default and should match.');
+        return [
+            'standard information_schema row' => [
+                ['charset' => 'utf8mb4', 'collation' => 'utf8mb4_unicode_ci'],
+                'utf8mb4',
+                'utf8mb4_unicode_ci',
+            ],
+            'missing row' => [
+                null,
+                null,
+                null,
+            ],
+            'empty row' => [
+                [],
+                null,
+                null,
+            ],
+            'empty strings are unknown' => [
+                ['charset' => '', 'collation' => ''],
+                null,
+                null,
+            ],
+            'charset without collation' => [
+                ['charset' => 'utf8mb4', 'collation' => ''],
+                'utf8mb4',
+                null,
+            ],
+            'collation without charset' => [
+                ['charset' => null, 'collation' => 'utf8mb4_unicode_ci'],
+                null,
+                'utf8mb4_unicode_ci',
+            ],
+            'non-array row' => [
+                'not-an-array',
+                null,
+                null,
+            ],
+        ];
     }
 
     public function testApplyDbDeltaDoesNotInspectCharsetWhenDesiredCollationIsMissing(): void
@@ -546,10 +532,5 @@ SQL;
         $this->assertSame('utf8mb4_unicode_ci', $desired);
         $this->assertTrue($this->columnCollationDiffers($desired, 'utf8mb4_general_ci'));
         $this->assertFalse($this->columnCollationDiffers($desired, null));
-    }
-
-    private function showCreateTableSql(string $charset, string $collation): string
-    {
-        return "CREATE TABLE `items` (\n  `id` int NOT NULL,\n  `name` varchar(255) COLLATE {$collation} DEFAULT NULL\n) ENGINE=InnoDB DEFAULT CHARSET={$charset} COLLATE={$collation}";
     }
 }

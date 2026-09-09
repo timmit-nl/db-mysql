@@ -1071,12 +1071,13 @@ class DB
             $tableCharsetConvertQueued = false;
             $desiredTable = self::parseTableCharsetAndCollation($qry);
             if (!is_null($desiredTable['charset']) && !is_null($desiredTable['collation'])) {
-                $currentCreateSql = self::extractCreateTableSql(self::selectQuery("SHOW CREATE TABLE `{$table}`;"));
+                $currentTable = self::getTableCharsetAndCollation((string)$table);
                 $charsetDelta = self::buildTableCharsetCollationDelta(
                     (string)$table,
                     $desiredTable['charset'],
                     $desiredTable['collation'],
-                    $currentCreateSql
+                    $currentTable['charset'],
+                    $currentTable['collation']
                 );
 
                 $tableCharsetConvertQueued = '' !== $charsetDelta['query'];
@@ -1339,39 +1340,71 @@ class DB
     }
 
     /**
-     * Read the CREATE TABLE SQL from a SHOW CREATE TABLE result set.
+     * Read the live table default charset and collation.
      *
-     * @param mixed[] $createRows The rows returned by SHOW CREATE TABLE.
+     * SHOW CREATE TABLE may omit COLLATE= when it is the character set default.
+     * information_schema.TABLES.TABLE_COLLATION is the resolved value.
      *
-     * @return string The Create Table SQL, or an empty string when it cannot be read.
+     * @param string $table The table name without surrounding backticks.
+     *
+     * @return array{charset: ?string, collation: ?string}
      */
-    private static function extractCreateTableSql(array $createRows): string
+    private static function getTableCharsetAndCollation(string $table): array
     {
-        $firstCreateRow = [];
-        if (isset($createRows[0])) {
-            $firstCreateRow = $createRows[0];
-        }
-        if (is_array($firstCreateRow) && array_key_exists('Create Table', $firstCreateRow)) {
-            return (string)$firstCreateRow['Create Table'];
+        $escapedTable = self::clean4DB($table, true);
+        $rows = self::selectQuery(
+            'SELECT col.CHARACTER_SET_NAME AS charset, t.TABLE_COLLATION AS collation'
+            . ' FROM information_schema.TABLES AS t'
+            . ' LEFT JOIN information_schema.COLLATIONS AS col'
+            . ' ON col.COLLATION_NAME = t.TABLE_COLLATION'
+            . ' WHERE t.TABLE_SCHEMA = DATABASE()'
+            . " AND t.TABLE_NAME = '{$escapedTable}'"
+            . ' LIMIT 1'
+        );
+
+        return self::tableCharsetAndCollationFromRow($rows[0] ?? null);
+    }
+
+    /**
+     * Normalize a live table charset/collation row from information_schema.
+     *
+     * @param mixed $row A result row with charset and collation keys, or null when missing.
+     *
+     * @return array{charset: ?string, collation: ?string}
+     */
+    private static function tableCharsetAndCollationFromRow(mixed $row): array
+    {
+        if (!is_array($row)) {
+            $row = [];
         }
 
-        return '';
+        $charset = (string)($row['charset'] ?? '');
+        $collation = (string)($row['collation'] ?? '');
+
+        return [
+            'charset' => '' !== $charset ? $charset : null,
+            'collation' => '' !== $collation ? $collation : null,
+        ];
     }
 
     /**
      * Build the CONVERT TO CHARACTER SET statement when table charset or collation differs.
      *
      * Comparison is case-insensitive. The CONVERT query and messages keep the desired
-     * spelling from the schema file. A change is also reported when the live CREATE
-     * TABLE SQL cannot be parsed, because the current values are then unknown.
+     * spelling from the schema file. A change is also reported when the live charset
+     * or collation is unknown.
+     *
+     * Current values must come from resolved table metadata, not SHOW CREATE TABLE:
+     * omitted COLLATE= is the charset default, not a missing collation.
      *
      * Callers must queue this CONVERT before CHANGE/ADD COLUMN. CONVERT overwrites
      * per-column collations, so explicit COLLATE clauses have to be applied after it.
      *
-     * @param string $table            The table name without surrounding backticks.
-     * @param string $desiredCharset   The DEFAULT CHARSET from the schema CREATE TABLE.
-     * @param string $desiredCollation The table COLLATE= from the schema CREATE TABLE.
-     * @param string $currentCreateSql The live SHOW CREATE TABLE SQL.
+     * @param string      $table             The table name without surrounding backticks.
+     * @param string      $desiredCharset    The DEFAULT CHARSET from the schema CREATE TABLE.
+     * @param string      $desiredCollation  The table COLLATE= from the schema CREATE TABLE.
+     * @param string|null $currentCharset    The live table character set, if known.
+     * @param string|null $currentCollation  The live table collation, if known.
      *
      * @return array{query: string, charsetMessage: string, collationMessage: string}
      */
@@ -1379,11 +1412,11 @@ class DB
         string $table,
         string $desiredCharset,
         string $desiredCollation,
-        string $currentCreateSql
+        ?string $currentCharset,
+        ?string $currentCollation
     ): array {
-        $current = self::parseTableCharsetAndCollation($currentCreateSql);
-        $charsetChanged = strtolower($desiredCharset) !== strtolower((string)$current['charset']);
-        $collationChanged = strtolower($desiredCollation) !== strtolower((string)$current['collation']);
+        $charsetChanged = strtolower($desiredCharset) !== strtolower((string)$currentCharset);
+        $collationChanged = strtolower($desiredCollation) !== strtolower((string)$currentCollation);
         if (!$charsetChanged && !$collationChanged) {
             return [
                 'query' => '',
@@ -1392,19 +1425,10 @@ class DB
             ];
         }
 
-        $charsetMessage = '';
-        $collationMessage = '';
-        if ($charsetChanged) {
-            $charsetMessage = 'Changed charset to ' . $desiredCharset;
-        }
-        if ($collationChanged) {
-            $collationMessage = 'Changed collation to ' . $desiredCollation;
-        }
-
         return [
             'query' => "ALTER TABLE `{$table}` CONVERT TO CHARACTER SET {$desiredCharset} COLLATE {$desiredCollation}",
-            'charsetMessage' => $charsetMessage,
-            'collationMessage' => $collationMessage,
+            'charsetMessage' => $charsetChanged ? 'Changed charset to ' . $desiredCharset : '',
+            'collationMessage' => $collationChanged ? 'Changed collation to ' . $desiredCollation : '',
         ];
     }
 
