@@ -297,6 +297,11 @@ class DB
             return;
         }
 
+        /* A rejected SET leaves the session on whatever it held: the server default, or the offset
+           a previous request pinned on a connection that got reused. Normalise to SYSTEM first, so
+           the comparison below weighs the daylight saving aware option rather than that leftover. */
+        self::trySetTimeZone($mlink, 'SYSTEM');
+
         /* Without those tables SYSTEM is the closest the server can get, so only override it when
            PHP and the server disagree about what time it is right now. */
         if (self::connectionOffsetMatchesPhp($mlink)) {
