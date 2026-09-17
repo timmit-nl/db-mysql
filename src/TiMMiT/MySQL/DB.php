@@ -384,6 +384,10 @@ class DB
      *
      * An empty value is treated as SYSTEM, which is MySQL's default session time zone.
      *
+     * A connection that is absent or does not answer counts as a failure rather than as nothing to
+     * do, because the caller uses the return value to decide whether it may run against UTC. The
+     * read connection is always required; the write connection only while it is active.
+     *
      * @param string $timeZone SYSTEM, a zone name, or an offset such as +00:00.
      *
      * @return bool True when every required connection accepted the time zone.
@@ -394,15 +398,23 @@ class DB
             $timeZone = 'SYSTEM';
         }
 
-        if (isset(self::$mlink) && self::ping() && !self::trySetTimeZone(self::$mlink, $timeZone)) {
+        if (!isset(self::$mlink) || !self::ping()) {
             return false;
         }
 
-        if (self::$writeActive && isset(self::$mlinkWrite) && self::ping(true) && !self::trySetTimeZone(self::$mlinkWrite, $timeZone)) {
+        if (!self::trySetTimeZone(self::$mlink, $timeZone)) {
             return false;
         }
 
-        return true;
+        if (!self::$writeActive) {
+            return true;
+        }
+
+        if (!isset(self::$mlinkWrite) || !self::ping(true)) {
+            return false;
+        }
+
+        return self::trySetTimeZone(self::$mlinkWrite, $timeZone);
     }
 
     /**
