@@ -273,8 +273,11 @@ class DB
      * Leaving it unset makes every comparison between a date built in PHP and such a column silently
      * off by the difference between the two.
      *
-     * The offset is sent instead of the name, because named zones need the time zone tables of MySQL
-     * to be filled and those are empty unless someone imported them.
+     * The name is sent rather than the offset, because an offset is a snapshot: it applies the
+     * offset of the moment of connecting to every value, so a timestamp from the other half of the
+     * year comes back an hour off, and a connection that outlives a daylight saving transition
+     * keeps the offset it started with. Named zones do need the time zone tables of MySQL to be
+     * filled, which is not a given, so both fallbacks below exist.
      *
      * @param \mysqli $mlink
      *
@@ -282,17 +285,80 @@ class DB
      */
     private static function setTimeZoneOnConnection(\mysqli $mlink): void
     {
-        try {
-            $offset = (new \DateTime())->format('P');
-            mysqli_query($mlink, "SET time_zone = '" . $offset . "'");
-        } catch (\mysqli_sql_exception $e) {
+        if (self::trySetTimeZone($mlink, date_default_timezone_get())) {
+            return;
         }
+
+        /* A rejected SET leaves the session on whatever it held: the server default, or the offset
+           a previous request pinned on a connection that got reused. Normalise to SYSTEM first, so
+           the comparison below weighs the daylight saving aware option rather than that leftover. */
+        self::trySetTimeZone($mlink, 'SYSTEM');
+
+        /* Without those tables SYSTEM is the closest the server can get, so only override it when
+           PHP and the server disagree about what time it is right now. */
+        if (self::connectionOffsetMatchesPhp($mlink)) {
+            return;
+        }
+
+        self::trySetTimeZone($mlink, (new \DateTime())->format('P'));
+    }
+
+    /**
+     * Send a session time zone and report whether the server accepted it.
+     *
+     * Quotes are stripped from the value so the SET statement cannot break out of the string.
+     *
+     * @param \mysqli $mlink
+     * @param string $timeZone A zone name such as Europe/Amsterdam, or an offset such as +02:00.
+     *
+     * @return bool
+     */
+    private static function trySetTimeZone(\mysqli $mlink, string $timeZone): bool
+    {
+        $escaped = str_replace("'", '', $timeZone);
+        if ('' === $escaped) {
+            return false;
+        }
+
+        try {
+            return (bool)mysqli_query($mlink, "SET time_zone = '" . $escaped . "'");
+        } catch (\mysqli_sql_exception $e) {
+            return false;
+        }
+    }
+
+    /**
+     * Compare the current UTC offset of the connection with the one PHP is using.
+     *
+     * @param \mysqli $mlink
+     *
+     * @return bool False when the offsets differ or the server did not answer.
+     */
+    private static function connectionOffsetMatchesPhp(\mysqli $mlink): bool
+    {
+        try {
+            $result = mysqli_query($mlink, 'SELECT TIMESTAMPDIFF(SECOND, UTC_TIMESTAMP(), NOW()) AS offset_seconds');
+        } catch (\mysqli_sql_exception $e) {
+            return false;
+        }
+
+        if (!($result instanceof \mysqli_result)) {
+            return false;
+        }
+
+        $row = mysqli_fetch_assoc($result);
+        mysqli_free_result($result);
+        if (!is_array($row) || !isset($row['offset_seconds'])) {
+            return false;
+        }
+
+        return (int)$row['offset_seconds'] === (new \DateTime())->getOffset();
     }
 
     /**
      * Read the session time zone of the primary connection.
      *
-     * @return string SYSTEM, an offset such as +02:00, or SYSTEM when the value is missing.
+     * @return string SYSTEM, a zone name, an offset such as +02:00, or SYSTEM when it is missing.
      */
     private static function getSessionTimeZone(): string
     {
@@ -308,33 +374,24 @@ class DB
     /**
      * Set the session time zone on the read connection and, when present, the write connection.
      *
-     * Quotes in the value are stripped so the SET statement cannot break out of the string.
      * An empty value is treated as SYSTEM, which is MySQL's default session time zone.
      *
-     * @param string $timeZone SYSTEM or an offset such as +00:00.
+     * @param string $timeZone SYSTEM, a zone name, or an offset such as +00:00.
      *
      * @return void
      */
     private static function setSessionTimeZoneOnAllConnections(string $timeZone): void
     {
-        $escaped = str_replace("'", '', $timeZone);
-        if ('' === $escaped) {
-            $escaped = 'SYSTEM';
-        }
-        $query = "SET time_zone = '" . $escaped . "'";
-
-        try {
-            if (isset(self::$mlink) && self::ping()) {
-                mysqli_query(self::$mlink, $query);
-            }
-        } catch (\mysqli_sql_exception $e) {
+        if ('' === $timeZone) {
+            $timeZone = 'SYSTEM';
         }
 
-        try {
-            if (self::$writeActive && isset(self::$mlinkWrite) && self::ping(true)) {
-                mysqli_query(self::$mlinkWrite, $query);
-            }
-        } catch (\mysqli_sql_exception $e) {
+        if (isset(self::$mlink) && self::ping()) {
+            self::trySetTimeZone(self::$mlink, $timeZone);
+        }
+
+        if (self::$writeActive && isset(self::$mlinkWrite) && self::ping(true)) {
+            self::trySetTimeZone(self::$mlinkWrite, $timeZone);
         }
     }
 
