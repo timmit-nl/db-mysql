@@ -592,7 +592,12 @@ class DB
     public static function updateQuery(string $query, bool $writeNode = true): bool
     {
         self::addToStats(__FUNCTION__);
-        return (bool)self::query($query, $writeNode);
+        $querySucceeded = (bool)self::query($query, $writeNode);
+        if ($querySucceeded) {
+            return 0 < self::getAffectedRows($writeNode);
+        }
+
+        return false;
     }
 
     /**
