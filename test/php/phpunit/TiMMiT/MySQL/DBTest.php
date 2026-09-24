@@ -25,6 +25,22 @@ class DBTest extends BaseTestCase
     private const EXPECTED_RANDOM_ALPHABET = 'abcdefghijkmnpqrstuvwxyz0123456789';
 
     /**
+     * The affected-row API must remain public and use the write connection by default.
+     */
+    public function testGetAffectedRowsApiContract(): void
+    {
+        $reflection = new ReflectionClass(DB::class);
+        $method = $reflection->getMethod('getAffectedRows');
+        $parameters = $method->getParameters();
+
+        $this->assertTrue($method->isPublic());
+        $this->assertSame('int', (string)$method->getReturnType());
+        $this->assertCount(1, $parameters);
+        $this->assertSame('writeNode', $parameters[0]->getName());
+        $this->assertTrue($parameters[0]->getDefaultValue());
+    }
+
+    /**
      * De private constante met het random-alfabet mag niet ongemerkt wijzigen.
      */
     public function testRandomAlphabetConstantValue(): void
