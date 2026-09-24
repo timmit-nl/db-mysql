@@ -574,6 +574,25 @@ class DB
     }
 
     /**
+     * Return the number of rows affected by the most recent statement.
+     *
+     * @param bool $writeNode
+     *
+     * @return int
+     */
+    public static function getAffectedRows(bool $writeNode = true): int
+    {
+        self::addToStats(__FUNCTION__);
+
+        $mlink = self::$mlink;
+        if ($writeNode && self::$writeActive) {
+            $mlink = self::$mlinkWrite;
+        }
+
+        return (int)mysqli_affected_rows($mlink);
+    }
+
+    /**
      * Delete Query function
      *
      * @param string $query
