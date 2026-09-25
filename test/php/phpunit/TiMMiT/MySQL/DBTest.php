@@ -41,6 +41,23 @@ class DBTest extends BaseTestCase
     }
 
     /**
+     * Found-row reporting must remain opt-in for existing consumers.
+     */
+    public function testFoundRowsConfigurationIsBackwardsCompatible(): void
+    {
+        $reflection = new ReflectionClass(DB::class);
+
+        foreach (['__construct', 'loadConfig'] as $methodName) {
+            $parameters = $reflection->getMethod($methodName)->getParameters();
+            $foundRows = $parameters[3];
+
+            $this->assertSame('useFoundRows', $foundRows->getName());
+            $this->assertTrue($foundRows->isDefaultValueAvailable());
+            $this->assertFalse($foundRows->getDefaultValue());
+        }
+    }
+
+    /**
      * De private constante met het random-alfabet mag niet ongemerkt wijzigen.
      */
     public function testRandomAlphabetConstantValue(): void

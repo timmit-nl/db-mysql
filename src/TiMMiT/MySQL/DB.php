@@ -142,6 +142,13 @@ class DB
     private static bool $wsrepSupport = false;
 
     /**
+     * Whether UPDATE affected-row counts include matching rows whose values did not change.
+     *
+     * @var bool
+     */
+    private static bool $useFoundRows = false;
+
+    /**
      * setConfigValue
      *
      * @param string $field
@@ -178,32 +185,35 @@ class DB
     /**
      * Class constructor.
      *
-     * @param string[]|int[] $primary  settings as assoc array
-     * @param string[]|int[] $write    settings as assoc array
-     * @param string[]|int[] $fallback settings as assoc array
+     * @param string[]|int[] $primary      settings as assoc array
+     * @param string[]|int[] $write        settings as assoc array
+     * @param string[]|int[] $fallback     settings as assoc array
+     * @param bool            $useFoundRows Count matched rows instead of only changed rows
      *
      * @return void
      */
-    public function __construct(array $primary, array $write = [], array $fallback = [])
+    public function __construct(array $primary, array $write = [], array $fallback = [], bool $useFoundRows = false)
     {
-        self::loadConfig($primary, $write, $fallback);
+        self::loadConfig($primary, $write, $fallback, $useFoundRows);
         self::connect();
     }
 
     /**
      * load the config into the correct properties
      *
-     * @param string[]|int[] $primary  settings as assoc array
-     * @param string[]|int[] $write    settings as assoc array
-     * @param string[]|int[] $fallback settings as assoc array
+     * @param string[]|int[] $primary      settings as assoc array
+     * @param string[]|int[] $write        settings as assoc array
+     * @param string[]|int[] $fallback     settings as assoc array
+     * @param bool            $useFoundRows Count matched rows instead of only changed rows
      *
      * @return void
      */
-    public static function loadConfig(array $primary, array $write = [], array $fallback = []): void
+    public static function loadConfig(array $primary, array $write = [], array $fallback = [], bool $useFoundRows = false): void
     {
         self::$primary = $primary;
         self::$write = $write;
         self::$fallback = $fallback;
+        self::$useFoundRows = $useFoundRows;
     }
 
     /**
@@ -220,14 +230,14 @@ class DB
         mysqli_report(self::$mysqliReportingExceptionOn);
 
         try {
-            $mlink = mysqli_connect((string)self::$primary['host'], (string)self::$primary['username'], (string)self::$primary['password'], (string)self::$primary['database'], (int)self::$primary['port']);
+            $mlink = self::createConnection(self::$primary);
             if (false !== $mlink) {
                 self::$mlink = $mlink;
             }
             self::$writeActive = false;
 
             if (count(self::$write) > 0 && self::$primary !== self::$write && '' !== (self::$write['host'] ?? '')) {
-                $mlink = mysqli_connect((string)self::$write['host'], (string)self::$write['username'], (string)self::$write['password'], (string)self::$write['database'], (int)self::$write['port']);
+                $mlink = self::createConnection(self::$write);
                 if (false !== $mlink) {
                     self::$mlinkWrite = $mlink;
                 }
@@ -235,7 +245,7 @@ class DB
             }
         } catch (\mysqli_sql_exception $e) {
             if (count(self::$fallback) > 0 &&  '' !== (self::$fallback['host'] ?? '')) {
-                $mlink = mysqli_connect((string)self::$fallback['host'], (string)self::$fallback['username'], (string)self::$fallback['password'], (string)self::$fallback['database'], (int)self::$fallback['port']);
+                $mlink = self::createConnection(self::$fallback);
                 if (false !== $mlink) {
                     self::$mlink = $mlink;
                 }
@@ -256,6 +266,42 @@ class DB
             self::$wsrepSupport = DB::checkIfWsrep();
             self::setWsrepSyncWait(true);
         }
+    }
+
+    /**
+     * Create a configured mysqli connection.
+     *
+     * @param string[]|int[] $config Connection settings
+     *
+     * @return \mysqli|false
+     */
+    private static function createConnection(array $config): \mysqli|false
+    {
+        $mlink = mysqli_init();
+        if (false === $mlink) {
+            return false;
+        }
+
+        $flags = 0;
+        if (self::$useFoundRows) {
+            $flags |= MYSQLI_CLIENT_FOUND_ROWS;
+        }
+
+        $connected = mysqli_real_connect(
+            $mlink,
+            (string)$config['host'],
+            (string)$config['username'],
+            (string)$config['password'],
+            (string)$config['database'],
+            (int)$config['port'],
+            null,
+            $flags
+        );
+        if (!$connected) {
+            return false;
+        }
+
+        return $mlink;
     }
 
     /**
@@ -597,6 +643,9 @@ class DB
 
     /**
      * Return the number of rows affected by the most recent statement.
+     *
+     * UPDATE statements return changed rows by default. When the connection was initialised with
+     * useFoundRows enabled, they return matched rows, including rows whose values did not change.
      *
      * @param bool $writeNode
      *
