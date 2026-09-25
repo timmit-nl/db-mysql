@@ -185,8 +185,8 @@ class DB
     /**
      * Class constructor.
      *
-     * @param string[]|int[] $primary  settings as assoc array
-     * @param string[]|int[] $write    settings as assoc array
+     * @param string[]|int[] $primary      settings as assoc array
+     * @param string[]|int[] $write        settings as assoc array
      * @param string[]|int[] $fallback     settings as assoc array
      * @param bool            $useFoundRows Count matched rows instead of only changed rows
      *
@@ -201,8 +201,8 @@ class DB
     /**
      * load the config into the correct properties
      *
-     * @param string[]|int[] $primary  settings as assoc array
-     * @param string[]|int[] $write    settings as assoc array
+     * @param string[]|int[] $primary      settings as assoc array
+     * @param string[]|int[] $write        settings as assoc array
      * @param string[]|int[] $fallback     settings as assoc array
      * @param bool            $useFoundRows Count matched rows instead of only changed rows
      *
