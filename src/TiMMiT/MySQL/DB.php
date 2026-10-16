@@ -1268,7 +1268,8 @@ class DB
                     // Add the index to the index data array.
                     $keyname = $tableindex['Key_name'];
 
-                    /** @var string[] */
+                    // Sub_part is NULL in MySQL for indexes that cover the whole column.
+                    /** @var array{fieldname: string|int, subpart: string|int|null} $columns */
                     $columns = ['fieldname' => $tableindex['Column_name'], 'subpart' => $tableindex['Sub_part']];
                     $index_ary[$keyname]['columns'][] = $columns;
                     $index_ary[$keyname]['unique'] = 0 === (int)$tableindex['Non_unique'];
