@@ -73,7 +73,7 @@ jobs:
           set +e
           status=0
           for std in .phpcs.xml .phpcs-docblock.xml; do
-            echo "=== $std"
+            echo "=== $std" | tee -a phpcs.txt
             phpcs -s -p --extensions=php --standard="$std" \
               --exclude=Generic.Files.LineLength,Squiz.Classes.ValidClassName \
               ./src 2>&1 | tee -a phpcs.txt
