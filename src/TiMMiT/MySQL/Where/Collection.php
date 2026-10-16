@@ -232,7 +232,7 @@ class Collection implements Iterator, Countable, Stringable
     /**
      * @inheritDoc
      *
-     * @return int
+     * @return int<0, max>
      */
     public function count(): int
     {
@@ -271,7 +271,7 @@ class Collection implements Iterator, Countable, Stringable
     public function remove(int $position): bool
     {
         if (isset($this->array[$position])) {
-            if ($position == $this->position) {
+            if ($position === $this->position) {
                 $this->rewind();
             }
             unset($this->array[$position]);

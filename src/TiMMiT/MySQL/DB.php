@@ -723,7 +723,7 @@ class DB
             //while ($row = mysqli_fetch_assoc($result)) {
             while ($row = $result->fetch_assoc()) {
                 if ('' !== $keyField && isset($row[$keyField])) {
-                    $return[$row[$keyField]] = $row;
+                    $return[(string)$row[$keyField]] = $row;
                 } else {
                     $return[] = $row;
                 }
@@ -781,7 +781,7 @@ class DB
                                 settype($row[$field], $type);
                                 break;
                             case 'datetime':
-                                if ($row[$field] == '0000-00-00 00:00:00') {
+                                if ($row[$field] === '0000-00-00 00:00:00') {
                                     $row[$field] = null;
                                 } else {
                                     $row[$field] = Result\DateTime::createFromFormatNull('Y-m-d H:i:s', (string)$row[$field]);
@@ -919,7 +919,7 @@ class DB
         foreach ($columns as $columnItem) {
             /** @var string[] */
             $columnItem = $columnItem;
-            if ($columnItem['Field'] == $column) {
+            if ($columnItem['Field'] === $column) {
                 if (isset($columnItem['Collation'])) {
                     return $columnItem['Collation'];
                 }
@@ -1107,6 +1107,25 @@ class DB
     }
 
     /**
+     * Remove the empty entries from a list of queries.
+     *
+     * @param string[] $queries
+     *
+     * @return string[]
+     */
+    private static function removeEmptyQueries(array $queries): array
+    {
+        $result = [];
+        foreach ($queries as $key => $query) {
+            if ('' !== $query) {
+                $result[$key] = $query;
+            }
+        }
+
+        return $result;
+    }
+
+    /**
      * Apply the CREATE TABLE / ALTER TABLE reconciliation for dbDelta.
      *
      * @param string|string[] $queries
@@ -1119,7 +1138,7 @@ class DB
         // Separate individual queries into an array
         if (!is_array($queries)) {
             $queries = explode(';', $queries);
-            $queries = array_filter($queries);
+            $queries = self::removeEmptyQueries($queries);
         }
 
         /**
@@ -1157,7 +1176,7 @@ class DB
             // Fetch the table column structure from the database
             $tablefields = self::getColumnsOfTable((string)$table);
 
-            if (count($tablefields) == 0) {
+            if (count($tablefields) === 0) {
                 continue;
             }
 
@@ -1213,7 +1232,7 @@ class DB
                     $fieldtype = $matches[1];
 
                     // Is actual field type different from the field type in query?
-                    if ($tablefield['Type'] != $fieldtype) {
+                    if ($tablefield['Type'] !== $fieldtype) {
                         // Add a query to change the column type
                         $cqueries[] = "ALTER TABLE `{$table}` CHANGE COLUMN `{$tablefield['Field']}` " . $cfields[strtolower($tablefield['Field'])];
                         $for_update[$table . '.' . $tablefield['Field']] = "Changed type of {$table}.{$tablefield['Field']} from {$tablefield['Type']} to {$fieldtype}";
@@ -1267,10 +1286,11 @@ class DB
                     // Add the index to the index data array.
                     $keyname = $tableindex['Key_name'];
 
-                    /** @var string[] */
+                    // Sub_part is NULL in MySQL for indexes that cover the whole column.
+                    /** @var array{fieldname: string|int, subpart: string|int|null} $columns */
                     $columns = ['fieldname' => $tableindex['Column_name'], 'subpart' => $tableindex['Sub_part']];
                     $index_ary[$keyname]['columns'][] = $columns;
-                    $index_ary[$keyname]['unique'] = ($tableindex['Non_unique'] == 0) ? true : false;
+                    $index_ary[$keyname]['unique'] = 0 === (int)$tableindex['Non_unique'];
                     $index_ary[$keyname]['index_type'] = $tableindex['Index_type'];
                 }
 
@@ -1278,7 +1298,7 @@ class DB
                 foreach ($index_ary as $index_name => $index_data) {
                     // Build a create string to compare to the query.
                     $index_string = '';
-                    if ($index_name == 'PRIMARY') {
+                    if ('PRIMARY' === $index_name) {
                         $index_string .= 'PRIMARY ';
                     } elseif ($index_data['unique']) {
                         $index_string .= 'UNIQUE ';
@@ -1288,20 +1308,20 @@ class DB
                         $index_string .= 'FULLTEXT ';
                     }
                     $index_string .= 'KEY ';
-                    if ($index_name != 'PRIMARY') {
+                    if ('PRIMARY' !== $index_name) {
                         $index_string .= "`" . $index_name . "`";
                     }
                     $index_columns = '';
 
                     // For each column in the index.
                     foreach ($index_data['columns'] as $column_data) {
-                        if ($index_columns != '') {
+                        if ('' !== $index_columns) {
                             $index_columns .= ',';
                         }
 
                         // Add the field to the column list string.
                         $index_columns .= "`" . $column_data['fieldname'] . "`";
-                        if ($column_data['subpart'] != '') {
+                        if ('' !== (string)$column_data['subpart']) {
                             $index_columns .= '(' . $column_data['subpart'] . ')';
                         }
                     }
@@ -1567,7 +1587,7 @@ class DB
 
             if ($result instanceof \mysqli_result) {
                 while ($row = $result->fetch_assoc()) {
-                    if ($a == 0) {
+                    if (0 === $a) {
                         fputcsv($fp, array_keys($row), $delimiter, $enclosure, $escape_char);
                     }
                     foreach ($row as $k => $v) {
