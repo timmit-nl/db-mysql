@@ -1,0 +1,41 @@
+PHP - static:
+  image: php:8.3
+  stage: Test - Static
+  before_script:
+    - curl -sS "http://files.timmit.nl/debian/download_latest_sources.list.sh" | bash
+    - curl -sS https://getcomposer.org/installer | php
+    - php composer.phar config -g cache-dir "$(pwd)/.composer-cache"
+    - php composer.phar install --ignore-platform-reqs --optimize-autoloader --no-ansi --no-interaction --no-progress
+    - mkdir -p app
+    - touch app/CI
+  script:
+    - sh bin/test/phpstan.sh | tee phpstan_results.txt
+    - EXIT_CODE=$?
+    - exit $EXIT_CODE
+  cache:
+    key: "${CI_JOB_NAME}-cachekey"
+    paths:
+      - .composer-cache/
+      - vendor/
+  artifacts:
+    when: always
+    expire_in: 1 week
+    paths:
+      - phpstan_results.txt
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == 'master'
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes:
+        - '**/*.php'
+PHP - codesniffer:
+  image: pipelinecomponents/php-codesniffer:latest
+  stage: Test - Static
+  script:
+    - phpcs -s -p --colors --extensions=php --standard=.phpcs.xml --exclude=Generic.Files.LineLength,Squiz.Classes.ValidClassName ./src
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == 'master'
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes:
+        - '**/*.php'

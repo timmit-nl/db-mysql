@@ -51,10 +51,10 @@ final class DateTime extends \DateTime implements Stringable
      *
      * @return DateTime|false
      */
-    public static function createFromFormat($format, $datetime, ?\DateTimeZone $timezone = null): DateTime|false
+    public static function createFromFormat(string $format, string $datetime, ?\DateTimeZone $timezone = null): DateTime|false
     {
-        $parent = parent::createFromFormat($format, $datetime);
-        if (!$parent) {
+        $parent = parent::createFromFormat($format, $datetime, $timezone);
+        if (false === $parent) {
             return false;
         }
         //Seting timezone like this and not by format to preserve timezone format
@@ -71,10 +71,10 @@ final class DateTime extends \DateTime implements Stringable
      *
      * @return DateTime|null
      */
-    public static function createFromFormatNull($format, $datetime, ?\DateTimeZone $timezone = null): ?DateTime
+    public static function createFromFormatNull(string $format, string $datetime, ?\DateTimeZone $timezone = null): ?DateTime
     {
-        $dateTime = self::createFromFormat($format, $datetime);
-        if (!$dateTime) {
+        $dateTime = self::createFromFormat($format, $datetime, $timezone);
+        if (false === $dateTime) {
             return null;
         }
         return $dateTime;

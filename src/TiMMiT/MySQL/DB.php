@@ -3,7 +3,7 @@
 /**
  * A very simple class for using MySQL.
  *
- * PHP version 7.4+
+ * PHP version 8.0+
  *
  * @package TiMMiT/DB-MySQL
  * @author  Tim Schoondergang <tim.schoondergang@TiMMiT.nl>
@@ -14,7 +14,6 @@ declare(strict_types=1);
 namespace TiMMiT\MySQL;
 
 use TiMMiT\MySQL\Where\Collection;
-use TiMMiT\MySQL\Where\Param;
 
 /**
  * MySQL DB connection.
@@ -22,18 +21,26 @@ use TiMMiT\MySQL\Where\Param;
 class DB
 {
     /**
+     * Alphabet used for random id generation. Excludes ambiguous characters (l, o) and uppercase
+     * to keep ids unambiguous; shared by both the Secure engine path and the random_int fallback.
+     *
+     * @var string
+     */
+    private const RANDOM_ID_ALPHABET = 'abcdefghijkmnpqrstuvwxyz0123456789';
+
+    /**
      * The config vars.
      *
      * @var string[]|int[]
      */
-    protected static array $config = array();
+    protected static array $primary = [];
 
     /**
      * The config fallback vars.
      *
      * @var string[]|int[]
      */
-    protected static array $fallback = array();
+    protected static array $fallback = [];
 
     /**
      * The backup active bool.
@@ -47,7 +54,7 @@ class DB
      *
      * @var string[]|int[]
      */
-    protected static array $write = array();
+    protected static array $write = [];
 
     /**
      * The write active bool.
@@ -89,7 +96,7 @@ class DB
      *
      * @var int[]
      */
-    protected static array $stats = array();
+    protected static array $stats = [];
 
     /**
      * Created DB connection
@@ -106,11 +113,11 @@ class DB
     protected static \mysqli $mlinkWrite;
 
     /**
-     * The default charset.
+     * The default charset for the connection.
      *
      * @var string
      */
-    protected static string $charset = "utf8mb4";
+    protected static string $charset = 'utf8mb4';
 
     /**
      * The mysqliReportingExceptionOn.
@@ -135,6 +142,13 @@ class DB
     private static bool $wsrepSupport = false;
 
     /**
+     * Whether UPDATE affected-row counts include matching rows whose values did not change.
+     *
+     * @var bool
+     */
+    private static bool $useFoundRows = false;
+
+    /**
      * setConfigValue
      *
      * @param string $field
@@ -144,8 +158,9 @@ class DB
      */
     public static function setConfigValue(string $field, $value): bool
     {
+        /** @phpstan-ignore-next-line */
         if (isset(self::${$field})) {
-            self::${$field} = $value;
+            self::${$field} = $value; /* @phpstan-ignore-line */
             return true;
         }
         return false;
@@ -160,8 +175,9 @@ class DB
      */
     public static function getConfigValue(string $field)
     {
+        /** @phpstan-ignore-next-line */
         if (isset(self::${$field})) {
-            return self::${$field};
+            return self::${$field}; /* @phpstan-ignore-line */
         }
         return null;
     }
@@ -169,24 +185,35 @@ class DB
     /**
      * Class constructor.
      *
-     * @param string[]|int[] $config   settings as assoc array
-     * @param string[]|int[] $write    settings as assoc array
-     * @param string[]|int[] $fallback settings as assoc array
+     * @param string[]|int[] $primary      settings as assoc array
+     * @param string[]|int[] $write        settings as assoc array
+     * @param string[]|int[] $fallback     settings as assoc array
+     * @param bool            $useFoundRows Count matched rows instead of only changed rows
      *
      * @return void
      */
-    public function __construct(array $config, array $write = array(), array $fallback = array())
+    public function __construct(array $primary, array $write = [], array $fallback = [], bool $useFoundRows = false)
     {
-        if (is_array($config)) {
-            self::$config = $config;
-        }
-        if (is_array($write)) {
-            self::$write = $write;
-        }
-        if (is_array($fallback)) {
-            self::$fallback = $fallback;
-        }
+        self::loadConfig($primary, $write, $fallback, $useFoundRows);
         self::connect();
+    }
+
+    /**
+     * load the config into the correct properties
+     *
+     * @param string[]|int[] $primary      settings as assoc array
+     * @param string[]|int[] $write        settings as assoc array
+     * @param string[]|int[] $fallback     settings as assoc array
+     * @param bool            $useFoundRows Count matched rows instead of only changed rows
+     *
+     * @return void
+     */
+    public static function loadConfig(array $primary, array $write = [], array $fallback = [], bool $useFoundRows = false): void
+    {
+        self::$primary = $primary;
+        self::$write = $write;
+        self::$fallback = $fallback;
+        self::$useFoundRows = $useFoundRows;
     }
 
     /**
@@ -203,22 +230,23 @@ class DB
         mysqli_report(self::$mysqliReportingExceptionOn);
 
         try {
-            $mlink = mysqli_connect((string)self::$config['host'], (string)self::$config['username'], (string)self::$config['password'], (string)self::$config['database'], (int)self::$config['port']);
-            if ($mlink !== false) {
+            $mlink = self::createConnection(self::$primary);
+            if (false !== $mlink) {
                 self::$mlink = $mlink;
             }
             self::$writeActive = false;
-            if (!empty(self::$write) && self::$config != self::$write && !empty(self::$write['host'])) {
-                $mlink = mysqli_connect((string)self::$write['host'], (string)self::$write['username'], (string)self::$write['password'], (string)self::$write['database'], (int)self::$write['port']);
-                if ($mlink !== false) {
+
+            if (count(self::$write) > 0 && self::$primary !== self::$write && '' !== (self::$write['host'] ?? '')) {
+                $mlink = self::createConnection(self::$write);
+                if (false !== $mlink) {
                     self::$mlinkWrite = $mlink;
                 }
                 self::$writeActive = true;
             }
         } catch (\mysqli_sql_exception $e) {
-            if (!empty(self::$fallback) &&  !empty(self::$fallback['host'])) {
-                $mlink = mysqli_connect((string)self::$fallback['host'], (string)self::$fallback['username'], (string)self::$fallback['password'], (string)self::$fallback['database'], (int)self::$fallback['port']);
-                if ($mlink !== false) {
+            if (count(self::$fallback) > 0 &&  '' !== (self::$fallback['host'] ?? '')) {
+                $mlink = self::createConnection(self::$fallback);
+                if (false !== $mlink) {
                     self::$mlink = $mlink;
                 }
                 self::$fallbackActive = true;
@@ -228,35 +256,243 @@ class DB
             }
         }
 
-
         if (self::ping()) {
-            mysqli_set_charset(self::$mlink, self::$charset);
+            self::setCharsetOnConnection(self::$mlink);
+            self::setTimeZoneOnConnection(self::$mlink);
         }
         if (self::$writeActive && self::ping(true)) {
-            mysqli_set_charset(self::$mlinkWrite, self::$charset);
+            self::setCharsetOnConnection(self::$mlinkWrite);
+            self::setTimeZoneOnConnection(self::$mlinkWrite);
             self::$wsrepSupport = DB::checkIfWsrep();
             self::setWsrepSyncWait(true);
         }
     }
 
     /**
-     * Disconnect to DB
+     * Create a configured mysqli connection.
+     *
+     * @param string[]|int[] $config Connection settings
+     *
+     * @return \mysqli|false
+     */
+    private static function createConnection(array $config): \mysqli|false
+    {
+        $mlink = mysqli_init();
+        if (false === $mlink) {
+            return false;
+        }
+
+        $flags = 0;
+        if (self::$useFoundRows) {
+            $flags |= MYSQLI_CLIENT_FOUND_ROWS;
+        }
+
+        $connected = mysqli_real_connect(
+            $mlink,
+            (string)$config['host'],
+            (string)$config['username'],
+            (string)$config['password'],
+            (string)$config['database'],
+            (int)$config['port'],
+            null,
+            $flags
+        );
+        if (!$connected) {
+            return false;
+        }
+
+        return $mlink;
+    }
+
+    /**
+     * setCharsetOnConnection
+     *
+     * @param \mysqli $mlink
      *
      * @return void
      */
-    public static function disconnect(): void
+    private static function setCharsetOnConnection(\mysqli $mlink): void
+    {
+        try {
+            mysqli_set_charset($mlink, self::$charset);
+        } catch (\mysqli_sql_exception $e) {
+        }
+    }
+
+    /**
+     * Let the connection use the same time zone as PHP.
+     *
+     * A timestamp column is converted to and from the time zone of the connection, so a server that
+     * runs in another one returns times that do not line up with what PHP wrote or compares against.
+     * Leaving it unset makes every comparison between a date built in PHP and such a column silently
+     * off by the difference between the two.
+     *
+     * The name is sent rather than the offset, because an offset is a snapshot: it applies the
+     * offset of the moment of connecting to every value, so a timestamp from the other half of the
+     * year comes back an hour off, and a connection that outlives a daylight saving transition
+     * keeps the offset it started with. Named zones do need the time zone tables of MySQL to be
+     * filled, which is not a given, so both fallbacks below exist.
+     *
+     * @param \mysqli $mlink
+     *
+     * @return void
+     */
+    private static function setTimeZoneOnConnection(\mysqli $mlink): void
+    {
+        if (self::trySetTimeZone($mlink, date_default_timezone_get())) {
+            return;
+        }
+
+        /* A rejected SET leaves the session on whatever it held: the server default, or the offset
+           a previous request pinned on a connection that got reused. Normalise to SYSTEM first, so
+           the comparison below weighs the daylight saving aware option rather than that leftover. */
+        self::trySetTimeZone($mlink, 'SYSTEM');
+
+        /* Without those tables SYSTEM is the closest the server can get, so only override it when
+           PHP and the server disagree about what time it is right now. */
+        if (self::connectionOffsetMatchesPhp($mlink)) {
+            return;
+        }
+
+        self::trySetTimeZone($mlink, (new \DateTime())->format('P'));
+    }
+
+    /**
+     * Send a session time zone and report whether the server accepted it.
+     *
+     * Quotes are stripped from the value so the SET statement cannot break out of the string.
+     *
+     * @param \mysqli $mlink
+     * @param string $timeZone A zone name such as Europe/Amsterdam, or an offset such as +02:00.
+     *
+     * @return bool
+     */
+    private static function trySetTimeZone(\mysqli $mlink, string $timeZone): bool
+    {
+        $escaped = str_replace("'", '', $timeZone);
+        if ('' === $escaped) {
+            return false;
+        }
+
+        try {
+            return (bool)mysqli_query($mlink, "SET time_zone = '" . $escaped . "'");
+        } catch (\mysqli_sql_exception $e) {
+            return false;
+        }
+    }
+
+    /**
+     * Compare the current UTC offset of the connection with the one PHP is using.
+     *
+     * @param \mysqli $mlink
+     *
+     * @return bool False when the offsets differ or the server did not answer.
+     */
+    private static function connectionOffsetMatchesPhp(\mysqli $mlink): bool
+    {
+        try {
+            $result = mysqli_query($mlink, 'SELECT TIMESTAMPDIFF(SECOND, UTC_TIMESTAMP(), NOW()) AS offset_seconds');
+        } catch (\mysqli_sql_exception $e) {
+            return false;
+        }
+
+        if (!($result instanceof \mysqli_result)) {
+            return false;
+        }
+
+        $row = mysqli_fetch_assoc($result);
+        mysqli_free_result($result);
+        if (!is_array($row) || !isset($row['offset_seconds'])) {
+            return false;
+        }
+
+        return (int)$row['offset_seconds'] === (new \DateTime())->getOffset();
+    }
+
+    /**
+     * Read the session time zone of the primary connection.
+     *
+     * @return string SYSTEM, a zone name, an offset such as +02:00, or SYSTEM when it is missing.
+     */
+    private static function getSessionTimeZone(): string
+    {
+        $rows = self::selectQuery('SELECT @@session.time_zone AS time_zone');
+        $row = $rows[0] ?? null;
+        if (!is_array($row) || !is_string($row['time_zone'] ?? null) || '' === $row['time_zone']) {
+            return 'SYSTEM';
+        }
+
+        return $row['time_zone'];
+    }
+
+    /**
+     * Set the session time zone on the read connection and, when present, the write connection.
+     *
+     * An empty value is treated as SYSTEM, which is MySQL's default session time zone.
+     *
+     * A connection that is absent or does not answer counts as a failure rather than as nothing to
+     * do, because the caller uses the return value to decide whether it may run against UTC. The
+     * read connection is always required; the write connection only while it is active.
+     *
+     * @param string $timeZone SYSTEM, a zone name, or an offset such as +00:00.
+     *
+     * @return bool True when every required connection accepted the time zone.
+     */
+    private static function setSessionTimeZoneOnAllConnections(string $timeZone): bool
+    {
+        if ('' === $timeZone) {
+            $timeZone = 'SYSTEM';
+        }
+
+        if (!isset(self::$mlink) || !self::ping()) {
+            return false;
+        }
+
+        if (!self::trySetTimeZone(self::$mlink, $timeZone)) {
+            return false;
+        }
+
+        if (!self::$writeActive) {
+            return true;
+        }
+
+        if (!isset(self::$mlinkWrite) || !self::ping(true)) {
+            return false;
+        }
+
+        return self::trySetTimeZone(self::$mlinkWrite, $timeZone);
+    }
+
+    /**
+     * Disconnect to DB
+     *
+     * @param bool $skipPing Do not query existing sockets before closing them.
+     *
+     * @return void
+     */
+    public static function disconnect(bool $skipPing = false): void
     {
         try {
             self::addToStats(__FUNCTION__);
 
             mysqli_report(self::$mysqliReportingExceptionOn);
-            if (self::$writeActive && self::ping(true)) {
-                mysqli_close(self::$mlinkWrite);
+            if (self::$writeActive && isset(self::$mlinkWrite) && ($skipPing || self::ping(true))) {
+                try {
+                    mysqli_close(self::$mlinkWrite);
+                } catch (\Throwable $e) {
+                } finally {
+                    unset(self::$mlinkWrite);
+                }
             }
-            if (self::ping()) {
-                mysqli_close(self::$mlink);
+            if (isset(self::$mlink) && ($skipPing || self::ping())) {
+                try {
+                    mysqli_close(self::$mlink);
+                } catch (\Throwable $e) {
+                } finally {
+                    unset(self::$mlink);
+                }
             }
-        } catch (\mysqli_sql_exception $e) {
+        } catch (\Throwable $e) {
         }
         mysqli_report(self::$mysqliReportingExceptionOff);
     }
@@ -264,12 +500,14 @@ class DB
     /**
      * reconnect to DB
      *
+     * @param bool $skipPing Do not query existing sockets before reconnecting.
+     *
      * @return void
      */
-    public static function reconnect(): void
+    public static function reconnect(bool $skipPing = false): void
     {
         self::addToStats(__FUNCTION__);
-        self::disconnect();
+        self::disconnect($skipPing);
         self::connect();
     }
 
@@ -293,6 +531,7 @@ class DB
             }
         }
 
+        /** @phpstan-ignore-next-line */
         if (!isset($mlink) || !is_object($mlink) || !isset($mlink->host_info)) {
             return false;
         }
@@ -300,7 +539,7 @@ class DB
         $returnValue = true;
         try {
             $result = mysqli_query($mlink, 'SELECT 1;');
-            if (!$result) {
+            if (false === $result) {
                 $errorno = mysqli_errno($mlink);
                 if ($errorno !== 0) {
                     $returnValue = false;
@@ -315,7 +554,6 @@ class DB
         }
         return $returnValue;
     }
-
 
     /**
      * Update Query function
@@ -351,6 +589,7 @@ class DB
             $errorno = mysqli_errno($mlink);
             $error = mysqli_error($mlink);
             switch ($errorno) {
+                case 1020:
                 case 1213:
                     if ($count < self::$max_deadlock_count) {
                         $count++;
@@ -360,10 +599,12 @@ class DB
                         throw new DBException("Query Failed:<ul><li>errorno=" . $errorno . "</li><li>failure_count=" . $count . " of max=" . self::$max_deadlock_count . " </li><li>error=" . $error . "</li><li>query=" . $query . "</li></ul>", $errorno);
                     }
                     break;
-                case 2006:
                 case 1047:
                 case 1156:
+                case 1180:
                 case 1205:
+                case 2006:
+                case 4031:
                     if ($count >= self::$max_goneaway_count && $write) {
                         $write = false;
                         $count = 0;
@@ -398,6 +639,28 @@ class DB
     {
         self::addToStats(__FUNCTION__);
         return (bool)self::query($query, $writeNode);
+    }
+
+    /**
+     * Return the number of rows affected by the most recent statement.
+     *
+     * UPDATE statements return changed rows by default. When the connection was initialised with
+     * useFoundRows enabled, they return matched rows, including rows whose values did not change.
+     *
+     * @param bool $writeNode
+     *
+     * @return int
+     */
+    public static function getAffectedRows(bool $writeNode = true): int
+    {
+        self::addToStats(__FUNCTION__);
+
+        $mlink = self::$mlink;
+        if ($writeNode && self::$writeActive) {
+            $mlink = self::$mlinkWrite;
+        }
+
+        return (int)mysqli_affected_rows($mlink);
     }
 
     /**
@@ -455,11 +718,11 @@ class DB
     {
         self::addToStats(__FUNCTION__);
         $result = self::query($query, $writeNode);
-        $return = array();
+        $return = [];
         if ($result instanceof \mysqli_result) {
             //while ($row = mysqli_fetch_assoc($result)) {
             while ($row = $result->fetch_assoc()) {
-                if (!empty($keyField) && isset($row[$keyField])) {
+                if ('' !== $keyField && isset($row[$keyField])) {
                     $return[$row[$keyField]] = $row;
                 } else {
                     $return[] = $row;
@@ -527,7 +790,7 @@ class DB
                         }
                     }
                 }
-                if (!empty($keyField) && isset($row[$keyField])) {
+                if ('' !== $keyField && isset($row[$keyField])) {
                     $return[(string)$row[$keyField]] = $row;
                 } else {
                     $return[] = $row;
@@ -654,13 +917,17 @@ class DB
 
         $columns = self::getColumnsOfTable($table, true);
         foreach ($columns as $columnItem) {
+            /** @var string[] */
+            $columnItem = $columnItem;
             if ($columnItem['Field'] == $column) {
-                return $columnItem['Collation'] ?? null;
+                if (isset($columnItem['Collation'])) {
+                    return $columnItem['Collation'];
+                }
+                return null;
             }
         }
         return null;
     }
-
 
     /**
      * clean variable for DB against SQL injection
@@ -674,7 +941,7 @@ class DB
     {
         self::addToStats(__FUNCTION__);
         $value = addcslashes(mysqli_real_escape_string(self::$mlink, $value), "%_");
-        if ($key != false) {
+        if (false !== $key) {
             $value = str_replace('\_', "_", $value);
         }
         return $value;
@@ -704,10 +971,10 @@ class DB
      *
      * @return string
      */
-    public static function makeId(string $hash = '', int $len = 1, $seed = "", string $add = ''): string
+    public static function makeId(string $hash = '', int $len = 1, mixed $seed = '', string $add = ''): string
     {
         self::addToStats(__FUNCTION__);
-        switch ($hash):
+        switch ($hash) {
             default:
                 $hash = 'sha1';
                 $length = 32;
@@ -721,33 +988,63 @@ class DB
             case 'md5':
                 $length = 25;
                 break;
-        endswitch;
-        if (empty($len)) {
+        };
+        $defaultLength = $length;
+        if (0 === $len) {
             $length = 0;
         } else {
             $length = max($len, $length);
         }
-        if (!empty($seed)) {
+        $hasSeed = (!is_null($seed) && '' !== $seed && false !== $seed && 0 !== $seed && '0' !== $seed && (!is_array($seed) || count($seed) > 0));
+        if ($hasSeed) {
             if (!is_string($seed)) {
                 $seed = serialize($seed);
             }
+            $id = base_convert(hash($hash, $seed), 16, 36);
         } else {
-            $seed = uniqid(rand() . time(), true);
-        }
-        $id = base_convert(hash($hash, $seed), 16, 36);
-        $erbij = $length - strlen($id);
-        if ($erbij > 0) {
-            if ($add == '') {
-                $stap = 10;
-                for ($a = 0; $a < $erbij; $a += $stap) {
-                    $erbij2 = min(($erbij - $a), $stap);
-                    $rand = (string)rand(pow(36, ($erbij2 - 1)), (pow(36, $erbij2) - 1));
-                    $id .= base_convert($rand, 10, 36);
-                }
+            /* With $len === 0 the historic behaviour was to return an id of the hash's natural
+               length instead of an empty string, so fall back to the per-hash default length here. */
+            if ($length > 0) {
+                $randomLength = $length;
             } else {
-                for ($a = 0; $a < $erbij; $a++) {
-                    $id .= $add;
+                $randomLength = $defaultLength;
+            }
+            // The Secure engine is the default, but we make it explicit
+            if (
+                \PHP_VERSION_ID >= 80300 &&
+                class_exists('\Random\Randomizer') &&
+                class_exists('\Random\Engine\Secure')
+            ) {
+                $randomizer = new \Random\Randomizer(new \Random\Engine\Secure());
+                $id = $randomizer->getBytesFromString(self::RANDOM_ID_ALPHABET, $randomLength);
+            } else {
+                /* Fallback for PHP < 8.3: draw each character from the same alphabet with a CSPRNG.
+                   random_int() is cryptographically secure and bias-free, so every character carries
+                   the full ~log2(strlen(self::RANDOM_ID_ALPHABET)) bits of entropy. */
+                $max = strlen(self::RANDOM_ID_ALPHABET) - 1;
+                $id = '';
+                for ($a = 0; $a < $randomLength; $a++) {
+                    $id .= self::RANDOM_ID_ALPHABET[random_int(0, $max)];
                 }
+            }
+        }
+        $missing = $length - strlen($id);
+        if ($missing > 0) {
+            if ('' === $add) {
+                /* Derive extra characters deterministically from the already generated id (which in
+                   the seeded path is itself derived from the seed), so a seeded id stays reproducible
+                   without rand(). Hashing $id instead of $seed keeps this branch type-safe: $seed is
+                   only normalised to a string within the seeded path, whereas $id is always a string.
+                   15 hex digits fit in a PHP int, so base_convert() is exact. */
+                $counter = 0;
+                $paddingBase = $id;
+                while (strlen($id) < $length) {
+                    $id .= base_convert(substr(hash($hash, $paddingBase . $counter), 0, 15), 16, 36);
+                    $counter++;
+                }
+                $id = substr($id, 0, $length);
+            } else {
+                $id = str_pad($id, $length, $add, STR_PAD_RIGHT);
             }
         }
         return $id;
@@ -762,92 +1059,6 @@ class DB
     {
         self::addToStats(__FUNCTION__);
         return mysqli_character_set_name(self::$mlink);
-    }
-
-    /**
-     * Make where statement from parameters
-     *
-     * @param mixed[]|null $param paramater or parameters as assoc array
-     * @param string $table
-     *
-     * @return string
-     *
-     * @deprecated 10.0 Use DB\Where\Collection instead of array of params and getWhereFromCollection instead of getWhereFromParam
-     */
-    public static function getWhereFromParam(?array $param = null, string $table = ''): string
-    {
-        self::addToStats(__FUNCTION__);
-        if (is_array($param) && !empty($param)) {
-            $where = "(";
-            $divider_operator = 'AND';
-            foreach ($param as $par) {
-                if (isset($par['divider_operator'])) {
-                    $divider_operator = $par['divider_operator'];
-                }
-                if (isset($par['param'])) {
-                    if (!empty($par['param'])) {
-                        if (!isset($par['operator'])) {
-                            $par['operator'] = '';
-                        }
-                        if (is_array($par['param']) && ($par['operator'] != 'IN' || $par['operator'] != 'NOT IN')) {
-                            $where .= '' . self::getWhereFromParam($par['param'], $table) . ' ' . self::clean4DB($divider_operator) . " ";
-                        } else {
-                            if (!isset($par['value'])) {
-                                $par['value'] = '';
-                            }
-                            if (!empty($table)) {
-                                $where .= "`" . $table . "`.";
-                            }
-                            $par['operator'] = strtoupper($par['operator']);
-                            switch ($par['operator']) {
-                                case 'IN':
-                                case 'NOT IN':
-                                    $value_txt = '';
-                                    if (is_array($par['value'])) {
-                                        if (!empty($par['value'])) {
-                                            $values = array();
-                                            foreach ($par['value'] as $value) {
-                                                $value = self::clean4DB((string)$value);
-                                                if (isset($par['dont_escape_special_characters']) && $par['dont_escape_special_characters'] == true) {
-                                                    $value = str_replace('#', "_", $value);
-                                                    $value = str_replace('\_', "_", $value);
-                                                    $value = str_replace('*', "%", $value);
-                                                }
-                                                $values[] = $value;
-                                            }
-                                            $value_txt = "'" . implode("','", $values) . "'";
-                                        }
-                                    } else {
-                                        $value_txt = $par['value'];
-                                    }
-                                    $where .= "`" . self::clean4DB($par['param'], true) . "` " . $par['operator'] . " (" . $value_txt . ") " . self::clean4DB($divider_operator) . " ";
-                                    break;
-                                default:
-                                    $value = self::clean4DB((string)$par['value']);
-                                    if (isset($par['dont_escape_special_characters']) && $par['dont_escape_special_characters'] == true) {
-                                        $value = str_replace('#', "_", $value);
-                                        $value = str_replace('\_', "_", $value);
-                                        $value = str_replace('*', "%", $value);
-                                    }
-                                    $where .= "`" . self::clean4DB($par['param'], true) . "` " . self::clean4DB($par['operator']) . " '" . $value . "' " . self::clean4DB($divider_operator) . " ";
-                                    break;
-                            }
-                        }
-                    }
-                }
-            }
-            if (isset($par['divider_operator'])) {
-                $divider_operator = $par['divider_operator'];
-            }
-            $where = substr($where, 0, (0 - strlen(" " . self::clean4DB($divider_operator) . " ")));
-            $where .= ")";
-            if ($where == ")") {
-                $where = "";
-            }
-        } else {
-            $where = "(1=1)";
-        }
-        return $where;
     }
 
     /**
@@ -866,14 +1077,45 @@ class DB
     /**
      * dbDelta on DB
      *
+     * TIMESTAMP defaults are stored in UTC and SHOW COLUMNS converts them to the
+     * session time zone. SQL files use naive literals, so schema comparison and DDL
+     * run in UTC. The previous session time zone is restored afterwards so DML keeps
+     * the PHP offset set in connect().
+     *
+     * When UTC cannot be applied on every required connection, schema comparison is
+     * not run so TIMESTAMP defaults are not rewritten against the PHP offset.
+     *
+     * @param string|string[] $queries
+     * @param bool $execute
+     *
+     * @return string[]
+     *
+     * @throws DBException When the UTC session time zone cannot be applied.
+     */
+    public static function dbDelta($queries = '', bool $execute = true): array
+    {
+        self::addToStats(__FUNCTION__);
+        $previousTimeZone = self::getSessionTimeZone();
+        try {
+            if (!self::setSessionTimeZoneOnAllConnections('+00:00')) {
+                throw new DBException('Could not set session time zone to UTC for dbDelta.');
+            }
+            return self::applyDbDelta($queries, $execute);
+        } finally {
+            self::setSessionTimeZoneOnAllConnections($previousTimeZone);
+        }
+    }
+
+    /**
+     * Apply the CREATE TABLE / ALTER TABLE reconciliation for dbDelta.
+     *
      * @param string|string[] $queries
      * @param bool $execute
      *
      * @return string[]
      */
-    public static function dbDelta($queries = '', bool $execute = true): array
+    private static function applyDbDelta($queries, bool $execute): array
     {
-        self::addToStats(__FUNCTION__);
         // Separate individual queries into an array
         if (!is_array($queries)) {
             $queries = explode(';', $queries);
@@ -887,20 +1129,20 @@ class DB
          *
          * @since 3.3.0
          */
-        $cqueries = array(); // Creation Queries
-        $iqueries = array(); // Insertion Queries
-        $for_update = array();
+        $cqueries = []; // Creation Queries
+        $iqueries = []; // Insertion Queries
+        $for_update = [];
 
         // Create a tablename index for an array ($cqueries) of queries
         foreach ($queries as $qry) {
-            if (preg_match("|CREATE TABLE ([^ ]*)|", $qry, $matches)) {
+            if (1 === preg_match("|CREATE TABLE ([^ ]*)|", $qry, $matches)) {
                 $cqueries[trim($matches[1], '`')] = $qry;
                 $for_update[trim($matches[1], '`')] = 'Created table ' . $matches[1];
-            } elseif (preg_match("|CREATE DATABASE ([^ ]*)|", $qry, $matches)) {
+            } elseif (1 === preg_match("|CREATE DATABASE ([^ ]*)|", $qry, $matches)) {
                 array_unshift($cqueries, $qry);
-            } elseif (preg_match("|INSERT INTO ([^ ]*)|", $qry, $matches)) {
+            } elseif (1 === preg_match("|INSERT INTO ([^ ]*)|", $qry, $matches)) {
                 $iqueries[] = $qry;
-            } elseif (preg_match("|UPDATE ([^ ]*)|", $qry, $matches)) {
+            } elseif (1 === preg_match("|UPDATE ([^ ]*)|", $qry, $matches)) {
                 $iqueries[] = $qry;
             } else {
                 // Unrecognized query type
@@ -915,16 +1157,17 @@ class DB
             // Fetch the table column structure from the database
             $tablefields = self::getColumnsOfTable((string)$table);
 
-            if (!$tablefields) {
+            if (count($tablefields) == 0) {
                 continue;
             }
 
             // Clear the field and index arrays.
-            $cfields = $indices = array();
+            $cfields = [];
+            $indices = [];
 
             // Get all of the field names in the query from between the parentheses.
             preg_match("|\((.*)\)|ms", $qry, $match2);
-            $qryline = trim($match2[1]);
+            $qryline = trim($match2[1] ?? '');
 
             // Separate field lines into an array.
             $flds = explode("\n", $qryline);
@@ -933,7 +1176,7 @@ class DB
             foreach ($flds as $fld) {
                 // Extract the field name.
                 preg_match("|^([^ ]*)|", trim($fld), $fvals);
-                $fieldname = trim($fvals[1], '`');
+                $fieldname = trim(($fvals[1] ?? ''), '`');
 
                 // Verify the found field name.
                 $validfield = true;
@@ -959,6 +1202,8 @@ class DB
 
             // For every field in the table.
             foreach ($tablefields as $tablefield) {
+                /** @var string[]*/
+                $tablefield = $tablefield;
                 // If the table field exists in the field array ...
                 if (array_key_exists(strtolower($tablefield['Field']), $cfields)) {
                     // Get the field type from the query.
@@ -976,12 +1221,13 @@ class DB
 
                     // Get the default value from the array
                     // todo: Remove this?
-                    if (preg_match("| DEFAULT '(.*?)'|i", $cfields[strtolower($tablefield['Field'])], $matches)) {
+                    if (1 === preg_match("| DEFAULT '(.*?)'|i", $cfields[strtolower($tablefield['Field'])], $matches)) {
                         $default_value = $matches[1];
-                        if ($tablefield['Default'] != $default_value) {
+                        $currentDefaultValue = trim(($tablefield['Default'] ?? ''), "'");
+                        if ($currentDefaultValue !== $default_value) {
                             // Add a query to change the column's default value
                             $cqueries[] = "ALTER TABLE `{$table}` ALTER COLUMN `{$tablefield['Field']}` SET DEFAULT '{$default_value}'";
-                            $for_update[$table . '.' . $tablefield['Field']] = "Changed default value of {$table}.{$tablefield['Field']} from {$tablefield['Default']} to {$default_value}";
+                            $for_update[$table . '.' . $tablefield['Field']] = "Changed default value of {$table}.{$tablefield['Field']} from {$currentDefaultValue} to {$default_value}";
                         }
                     }
 
@@ -1002,15 +1248,28 @@ class DB
             // Index stuff goes here. Fetch the table index structure from the database.
             $tableindices = self::selectQuery("SHOW INDEX FROM `{$table}`;");
 
-            if ($tableindices) {
+            // Collect existing index names so changed keys can be dropped before re-adding.
+            /** @var array<string, true> $existingIndexNames */
+            $existingIndexNames = [];
+            foreach ($tableindices as $existingIndex) {
+                /** @var (string|int)[] $existingIndex */
+                $existingIndexNames[(string)$existingIndex['Key_name']] = true;
+            }
+
+            if (count($tableindices) > 0) {
                 // Clear the index array.
-                $index_ary = array();
+                $index_ary = [];
 
                 // For every index in the table.
                 foreach ($tableindices as $tableindex) {
+                    /** @var (string|int)[] */
+                    $tableindex = $tableindex;
                     // Add the index to the index data array.
                     $keyname = $tableindex['Key_name'];
-                    $index_ary[$keyname]['columns'][] = array('fieldname' => $tableindex['Column_name'], 'subpart' => $tableindex['Sub_part']);
+
+                    /** @var string[] */
+                    $columns = ['fieldname' => $tableindex['Column_name'], 'subpart' => $tableindex['Sub_part']];
+                    $index_ary[$keyname]['columns'][] = $columns;
                     $index_ary[$keyname]['unique'] = ($tableindex['Non_unique'] == 0) ? true : false;
                     $index_ary[$keyname]['index_type'] = $tableindex['Index_type'];
                 }
@@ -1024,7 +1283,8 @@ class DB
                     } elseif ($index_data['unique']) {
                         $index_string .= 'UNIQUE ';
                     }
-                    if ('FULLTEXT' === strtoupper($index_data['index_type'])) {
+                    $index_type = (string)$index_data['index_type'];
+                    if ('FULLTEXT' === strtoupper($index_type)) {
                         $index_string .= 'FULLTEXT ';
                     }
                     $index_string .= 'KEY ';
@@ -1052,24 +1312,38 @@ class DB
                     // Add the column list to the index create string.
                     $index_string = trim($index_string);
 
-                    $index_strings = array(
+                    $index_strings = [
                         "$index_string ($index_columns)",
                         "$index_string ($alt_index_columns)",
-                    );
+                    ];
 
+                    unset($index_string);
                     foreach ($index_strings as $index_string) {
-                        if (!(($aindex = array_search($index_string, $indices)) === false)) {
-                            unset($indices[$aindex]);
-                            break;
+                        $normalizedExisting = self::normalizeIndexDefinition($index_string);
+                        foreach ($indices as $aindex => $desiredIndex) {
+                            if ($normalizedExisting === self::normalizeIndexDefinition($desiredIndex)) {
+                                unset($indices[$aindex]);
+                                break 2;
+                            }
                         }
                     }
                 }
             }
 
             // For every remaining index specified for the table.
-            foreach ((array) $indices as $index) {
-                // Push a query line into $cqueries that adds the index to that table.
-                $cqueries[] = "ALTER TABLE `{$table}` ADD $index";
+            foreach ($indices as $index) {
+                // Build the ALTER statement for this index. When a non-primary key with the same
+                // name already exists, it is dropped within the same statement so the key is
+                // recreated with the new (e.g. composite) definition in a single atomic rebuild,
+                // instead of a separate DROP that would leave the table without the index if the
+                // following ADD fails.
+                $addIndex = self::buildAddIndexQuery((string)$table, $index, $existingIndexNames);
+                if ('' !== $addIndex['recreatedKey']) {
+                    $for_update[$table . '.' . $addIndex['recreatedKey']] = 'Recreated index ' . $table . ' ' . $addIndex['recreatedKey'];
+                }
+
+                // Push the query line into $cqueries that adds the index to that table.
+                $cqueries[] = $addIndex['query'];
                 $for_update[] = 'Added index ' . $table . ' ' . $index;
             }
 
@@ -1087,25 +1361,166 @@ class DB
     }
 
     /**
+     * Normalize an index definition so semantically identical keys compare equal.
+     *
+     * SQL files and SHOW INDEX format the same key in different ways: spaces after
+     * commas, INDEX vs KEY, optional backticks, extra whitespace, optional USING BTREE,
+     * and optional ASC. dbDelta used to treat those as a change and DROP+ADD the index
+     * on every update.
+     *
+     * Backtick-quoted identifiers are replaced with placeholders first, so whitespace
+     * and keyword rewrites cannot change a name that happens to contain INDEX, KEY,
+     * ASC, USING BTREE, or repeated spaces. Prefix lengths (`col(10)`) are kept,
+     * because those are a real schema difference.
+     *
+     * @param string $definition The index definition to normalize.
+     *
+     * @return string
+     */
+    private static function normalizeIndexDefinition(string $definition): string
+    {
+        $quotedIdentifiers = [];
+        $normalized = self::replaceQuotedIdentifiersWithPlaceholders(trim($definition), $quotedIdentifiers);
+
+        $collapsed = preg_replace('/\s+/', ' ', $normalized);
+        if (is_string($collapsed)) {
+            $normalized = $collapsed;
+        }
+
+        $withKeyKeyword = preg_replace('/\bINDEX\b/i', 'KEY', $normalized);
+        if (is_string($withKeyKeyword)) {
+            $normalized = $withKeyKeyword;
+        }
+
+        // Strip optional defaults before collapsing punctuation, otherwise
+        // `) USING BTREE` becomes `)USING BTREE` and the keyword no longer matches.
+        $withoutBtree = preg_replace('/\s+USING\s+BTREE\b/i', '', $normalized);
+        if (is_string($withoutBtree)) {
+            $normalized = $withoutBtree;
+        }
+
+        $withoutAsc = preg_replace('/\s+ASC\b/i', '', $normalized);
+        if (is_string($withoutAsc)) {
+            $normalized = $withoutAsc;
+        }
+
+        $withoutCommaSpace = preg_replace('/\s*,\s*/', ',', $normalized);
+        if (is_string($withoutCommaSpace)) {
+            $normalized = $withoutCommaSpace;
+        }
+
+        $withoutOpenParenSpace = preg_replace('/\s*\(\s*/', '(', $normalized);
+        if (is_string($withoutOpenParenSpace)) {
+            $normalized = $withoutOpenParenSpace;
+        }
+
+        $withoutCloseParenSpace = preg_replace('/\s*\)\s*/', ')', $normalized);
+        if (is_string($withoutCloseParenSpace)) {
+            $normalized = $withoutCloseParenSpace;
+        }
+
+        if (count($quotedIdentifiers) > 0) {
+            $normalized = str_replace(array_keys($quotedIdentifiers), array_values($quotedIdentifiers), $normalized);
+        }
+
+        return strtolower(trim($normalized));
+    }
+
+    /**
+     * Replace backtick-quoted identifiers with placeholders.
+     *
+     * Doubled backticks inside a name stay part of that identifier. The inner name
+     * is stored without the wrapping backticks so later comparison can still match
+     * a quoted name against the same unquoted identifier.
+     *
+     * @param string $definition        The index definition that may contain quoted names.
+     * @param array<string, string> $quotedIdentifiers Filled with placeholder => inner name.
+     *
+     * @return string
+     */
+    private static function replaceQuotedIdentifiersWithPlaceholders(string $definition, array &$quotedIdentifiers): string
+    {
+        $counter = 0;
+        $tokenized = preg_replace_callback(
+            '/`(?:[^`]|``)*`/',
+            static function (array $match) use (&$quotedIdentifiers, &$counter): string {
+                $placeholder = "\x00Q" . $counter . "\x00";
+                $counter++;
+                $quotedIdentifiers[$placeholder] = substr($match[0], 1, -1);
+                return $placeholder;
+            },
+            $definition
+        );
+        if (!is_string($tokenized)) {
+            return $definition;
+        }
+
+        return $tokenized;
+    }
+
+    /**
+     * Build the ALTER TABLE statement that adds a single index definition.
+     *
+     * When a non-primary key with the same name already exists in the table, a DROP INDEX
+     * clause is prepended within the same statement. This recreates the key with the new
+     * definition in a single atomic rebuild instead of failing on a duplicate key name, and
+     * avoids leaving the table without the index between a separate DROP and ADD.
+     *
+     * PRIMARY KEY forms, including PRIMARY KEY USING BTREE, are never dropped here.
+     *
+     * @param string $table              The table name without surrounding backticks.
+     * @param string $index              The index definition as produced by the schema parser.
+     * @param array<string, bool> $existingIndexNames Map of existing index names to presence.
+     *
+     * @return array{query: string, recreatedKey: string} The query, plus the recreated key name (empty when none).
+     */
+    private static function buildAddIndexQuery(string $table, string $index, array $existingIndexNames): array
+    {
+        $dropClause = '';
+        $recreatedKey = '';
+        // Match KEY and INDEX (also UNIQUE/FULLTEXT ... INDEX) with a quoted or unquoted name.
+        // PRIMARY KEY, including PRIMARY KEY USING BTREE, is skipped so a quoted column or the
+        // USING clause is not mistaken for the index name.
+        if (
+            1 !== preg_match('/^\s*PRIMARY\s+KEY\b/i', $index)
+            && 1 === preg_match('/(?:KEY|INDEX)\s+(?:`([^`]+)`|([A-Za-z0-9_]+))/i', $index, $keyMatch)
+        ) {
+            $keyName = $keyMatch[1];
+            if ('' === $keyName && isset($keyMatch[2])) {
+                $keyName = $keyMatch[2];
+            }
+            if ('' !== $keyName && isset($existingIndexNames[$keyName])) {
+                $dropClause = "DROP INDEX `{$keyName}`, ";
+                $recreatedKey = $keyName;
+            }
+        }
+
+        return [
+            'query' => "ALTER TABLE `{$table}` {$dropClause}ADD {$index}",
+            'recreatedKey' => $recreatedKey,
+        ];
+    }
+
+    /**
      * Export function 2 csv
      *
      * @param string $table       table
      * @param string[] $fields      if empty=* else array of fields
-     * @param null|Collection $Collection  params array for where
+     * @param null|Collection $Collection  Collection object for where
      * @param string|null $file        path to file, null to tempfile
      * @param bool $return      true return csv else return rows of csv
      * @param string $delimiter   delimiter of csv default ;
      * @param string $enclosure   enclosure of csv default "
      * @param string $escape_char escape_char of csv default \
      *
-     * @return int|string|false
+     * @return int|string|null Null on error.
      */
-    public static function export2Csv(string $table, array $fields = array(), ?Collection $Collection = null, ?string $file = null, bool $return = false, string $delimiter = ';', string $enclosure = '"', string $escape_char = "\\")
+    public static function export2Csv(string $table, array $fields = [], ?Collection $Collection = null, ?string $file = null, bool $return = false, string $delimiter = ';', string $enclosure = '"', string $escape_char = "\\")
     {
         self::addToStats(__FUNCTION__);
         $fieldsTxt = '*';
-        if (!empty($fields) && is_array($fields)) {
-            $fieldsArray = array();
+        if (count($fields) > 0) {
+            $fieldsArray = [];
             foreach ($fields as $field) {
                 $fieldsArray[] = self::clean4DB($field, true);
             }
@@ -1118,11 +1533,17 @@ class DB
             $where = self::getWhereFromCollection($Collection);
         }
 
-        $query = "SELECT " . $fieldsTxt . " FROM " . self::clean4DB($table, true) . " WHERE " . $where;
-
         $totalResult = DB::selectQuery("SELECT count(*) as `total` FROM " . self::clean4DB($table, true) . " WHERE " . $where . ";");
-        $total = $totalResult[0]['total'];
+
+        $total = 0;
+        if (is_array($totalResult[0] ?? null) && is_scalar($totalResult[0]['total'] ?? null)) {
+            $total = (int)$totalResult[0]['total'];
+        }
         $chunk = 1000;
+        $flushEvery = 5000;
+        $gcEvery = 50000;
+
+        $query = "SELECT " . $fieldsTxt . " FROM " . self::clean4DB($table, true) . " WHERE " . $where;
 
         if (is_null($file)) {
             $filename = tempnam(sys_get_temp_dir(), 'CSV');
@@ -1130,12 +1551,12 @@ class DB
         } else {
             $filename = $file;
         }
-        if ($filename === false) {
-            return false;
+        if (false === $filename) {
+            return null;
         }
         $fp = fopen($filename, 'w');
-        if ($fp === false) {
-            return false;
+        if (false === $fp) {
+            return null;
         }
         $a = 0;
 
@@ -1157,13 +1578,24 @@ class DB
                     }
                     fputcsv($fp, $row, $delimiter, $enclosure, $escape_char);
                     $a++;
+
+                    if (0 === ($a % $flushEvery)) {
+                        fflush($fp);
+                    }
+                    if (0 === ($a % $gcEvery)) {
+                        gc_collect_cycles();
+                    }
                 }
                 $result->free();
             }
         }
         fclose($fp);
-        if ($return == true) {
-            return file_get_contents($filename);
+        if (true === $return) {
+            $content = file_get_contents($filename);
+            if (is_string($content)) {
+                return $content;
+            }
+            return null;
         }
         return $a;
     }
@@ -1276,7 +1708,7 @@ class DB
      *
      * @return void
      */
-    private static function addToStats(string $queryType = ''): void
+    private static function addToStats(string $queryType): void
     {
         if (!isset(self::$stats[$queryType])) {
             self::$stats[$queryType] = 0;

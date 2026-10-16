@@ -1,0 +1,47 @@
+PHP - PHPUnit:
+  stage: Test - Unit
+  image: php:8.2
+  services:
+    - name: mariadb:11.4
+      alias: mysql
+  variables:
+    MARIADB_DATABASE: db_test
+    MARIADB_USER: db_test
+    MARIADB_PASSWORD: db_test
+    MARIADB_ROOT_PASSWORD: root
+    DB_TEST_HOST: mysql
+    DB_TEST_USER: db_test
+    DB_TEST_PASSWORD: db_test
+    DB_TEST_DATABASE: db_test
+    DB_TEST_PORT: "3306"
+  before_script:
+    - curl -sS "http://files.timmit.nl/debian/download_latest_sources.list.sh" | bash
+    # timmit/db-mysql depends on the mysqli extension; the base php image does not bundle it.
+    # Installing the extension only provides the constants/functions, no running MySQL is required.
+    - docker-php-ext-install mysqli
+    - curl -sS https://getcomposer.org/installer | php
+    - php composer.phar config -g cache-dir "$(pwd)/.composer-cache"
+    - php composer.phar install --ignore-platform-reqs --optimize-autoloader --no-ansi --no-interaction --no-progress
+    - mkdir -p app
+    - touch app/CI
+  script:
+    - vendor/bin/phpunit -c ./
+    - EXIT_CODE=$?
+    - exit $EXIT_CODE
+  cache:
+    key: "${CI_JOB_NAME}-cachekey"
+    paths:
+      - .composer-cache/
+      - vendor/
+  artifacts:
+    when: always
+    expire_in: 1 month
+    paths:
+      - phpstan_results.txt
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == 'master'
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes:
+        - '**/*.php'
+  allow_failure: true
