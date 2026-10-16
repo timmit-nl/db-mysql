@@ -48,38 +48,6 @@ jobs:
             if [ -s yamllint.txt ]; then echo '```'; head -c 60000 yamllint.txt; echo '```'; else echo 'No problems found.'; fi
           } >> "$GITHUB_STEP_SUMMARY"
 
-  phpcs-docblocks:
-    name: PHP - docblocks
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: shivammathur/setup-php@v2
-        with:
-          php-version: '8.3'
-          tools: phpcs, cs2pr
-          coverage: none
-      - name: phpcs (annotations)
-        shell: bash
-        run: >
-          phpcs -q --extensions=php --standard=.phpcs-docblock.xml
-          --exclude=Generic.Files.LineLength,Squiz.Classes.ValidClassName
-          --report=checkstyle ./src | cs2pr || true
-      - name: phpcs
-        shell: bash
-        run: >
-          set -o pipefail;
-          phpcs -s -p --extensions=php --standard=.phpcs-docblock.xml
-          --exclude=Generic.Files.LineLength,Squiz.Classes.ValidClassName
-          ./src 2>&1 | tee phpcs.txt
-      - name: Summary
-        if: always()
-        shell: bash
-        run: |
-          {
-            echo '### PHP - docblocks'
-            if [ -s phpcs.txt ]; then echo '```'; head -c 60000 phpcs.txt; echo '```'; else echo 'No problems found.'; fi
-          } >> "$GITHUB_STEP_SUMMARY"
-
   phpcs:
     name: PHP - codesniffer
     runs-on: ubuntu-latest
@@ -92,24 +60,33 @@ jobs:
           coverage: none
       - name: phpcs (annotations)
         shell: bash
-        run: >
-          phpcs -q --extensions=php --standard=.phpcs.xml
-          --exclude=Generic.Files.LineLength,Squiz.Classes.ValidClassName
-          --report=checkstyle ./src | cs2pr || true
+        run: |
+          for std in .phpcs.xml .phpcs-docblock.xml; do
+            phpcs -q --extensions=php --standard="$std" \
+              --exclude=Generic.Files.LineLength,Squiz.Classes.ValidClassName \
+              --report=checkstyle ./src | cs2pr || true
+          done
       - name: phpcs
         shell: bash
-        run: >
-          set -o pipefail;
-          phpcs -s -p --extensions=php --standard=.phpcs.xml
-          --exclude=Generic.Files.LineLength,Squiz.Classes.ValidClassName
-          ./src 2>&1 | tee phpcs.txt
+        run: |
+          # Run both standards so one failure does not hide the other.
+          set +e
+          status=0
+          for std in .phpcs.xml .phpcs-docblock.xml; do
+            echo "=== $std"
+            phpcs -s -p --extensions=php --standard="$std" \
+              --exclude=Generic.Files.LineLength,Squiz.Classes.ValidClassName \
+              ./src 2>&1 | tee -a phpcs.txt
+            [ "${PIPESTATUS[0]}" -eq 0 ] || status=1
+          done
+          exit "$status"
       - name: Summary
         if: always()
         shell: bash
         run: |
           {
-            echo '### PHP - codesniffer'
-            if [ -s phpcs.txt ]; then echo '```'; head -c 60000 phpcs.txt; echo '```'; else echo 'No problems found.'; fi
+            echo '### PHP - codesniffer (code style + docblocks)'
+            if [ -s phpcs.txt ]; then echo '```'; head -c 60000 phpcs.txt; echo '```'; else echo 'No output.'; fi
           } >> "$GITHUB_STEP_SUMMARY"
 
   phpstan:
@@ -259,7 +236,6 @@ jobs:
     if: always()
     needs:
       - yamllint
-      - phpcs-docblocks
       - phpcs
       - phpstan
       - phpunit
@@ -270,7 +246,6 @@ jobs:
         shell: bash
         env:
           R_YAMLLINT: ${{ needs.yamllint.outputs.outcome }}
-          R_DOCBLOCKS: ${{ needs.phpcs-docblocks.result }}
           R_PHPCS: ${{ needs.phpcs.result }}
           R_PHPSTAN: ${{ needs.phpstan.result }}
           R_PHPUNIT: ${{ needs.phpunit.outputs.outcome }}
@@ -292,8 +267,7 @@ jobs:
             echo '| Check | Result | Note |'
             echo '| --- | --- | --- |'
             echo "| YAML - yamllint | $(icon "$R_YAMLLINT") | informational (allow_failure) |"
-            echo "| PHP - docblocks | $(icon "$R_DOCBLOCKS") | |"
-            echo "| PHP - codesniffer | $(icon "$R_PHPCS") | |"
+            echo "| PHP - codesniffer (style + docblocks) | $(icon "$R_PHPCS") | |"
             echo "| PHP - static (PHPStan) | $(icon "$R_PHPSTAN") | |"
             echo "| PHP - PHPUnit | $(icon "$R_PHPUNIT") | informational (allow_failure) |"
             echo "| Secret detection | $(icon "$R_SECRETS") | |"
