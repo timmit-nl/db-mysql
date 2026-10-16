@@ -407,6 +407,15 @@ class ParamTest extends BaseTestCase
             /* Case 4: Boolean value (true) */
             'Boolean value' => [true, 'is', '1'],
 
+            /* Case 4b: Boolean value (false) must become 0 and not an empty string, which would give invalid SQL */
+            'Boolean value false' => [false, 'is', '0'],
+
+            /* Case 4c: Boolean value (false) with a negated operator */
+            'Boolean value false with isNot' => [false, 'isNot', '0'],
+
+            /* Case 4d: Booleans inside an array are converted per element, without a database connection */
+            'Array with booleans and a number' => [[true, false, 1], 'inArray', '(1,0,1)'],
+
             /* Case 5: Numeric value */
             'Numeric value' => [123, 'is', '123'],
         ];

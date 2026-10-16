@@ -352,7 +352,11 @@ class Param implements Stringable
                 }
                 break;
             case 'boolean':
-                return (string)intval($value);
+                if (true === $value) {
+                    return '1';
+                }
+
+                return '0';
             default:
                 if (is_scalar($value) || (is_object($value) && ($value instanceof Stringable))) {
                     return (string)$value;
