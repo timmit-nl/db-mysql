@@ -1119,8 +1119,7 @@ class DB
         // Separate individual queries into an array
         if (!is_array($queries)) {
             $queries = explode(';', $queries);
-            // Keep the old default behaviour: drop empty strings and "0"
-            $queries = array_filter($queries, static fn (string $query): bool => '' !== $query && '0' !== $query);
+            $queries = array_filter($queries, static fn (string $query): bool => '' !== $query);
         }
 
         /**
