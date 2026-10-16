@@ -1,0 +1,270 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - '*milestone*'
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+# Every job writes its output to the run summary (Actions -> run -> Summary),
+# marks problems as inline annotations where possible, and the final
+# "Overview" job collects all results in one table.
+#
+# Jobs that were allow_failure in GitLab (yamllint, PHPUnit) never turn the
+# run red; their outcome is reported in the Overview instead.
+
+jobs:
+  yamllint:
+    name: YAML - yamllint
+    runs-on: ubuntu-latest
+    outputs:
+      outcome: ${{ steps.run.outcome }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip install yamllint
+      - name: yamllint
+        id: run
+        continue-on-error: true  # allow_failure
+        shell: bash
+        run: |
+          yamllint -d relaxed -f github . || true
+          yamllint -d relaxed . 2>&1 | tee yamllint.txt
+      - name: Summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo '### YAML - yamllint'
+            if [ -s yamllint.txt ]; then echo '```'; head -c 60000 yamllint.txt; echo '```'; else echo 'No problems found.'; fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  phpcs:
+    name: PHP - codesniffer
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          tools: phpcs, cs2pr
+          coverage: none
+      # .phpcs-docblock.xml contains every rule of .phpcs.xml plus the docblock
+      # rules, so one run covers both code style and docblocks.
+      - name: phpcs (annotations)
+        shell: bash
+        run: >
+          phpcs -q --extensions=php --standard=.phpcs-docblock.xml
+          --exclude=Generic.Files.LineLength,Squiz.Classes.ValidClassName
+          --report=checkstyle ./src | cs2pr || true
+      - name: phpcs
+        shell: bash
+        run: >
+          set -o pipefail;
+          phpcs -s -p --extensions=php --standard=.phpcs-docblock.xml
+          --exclude=Generic.Files.LineLength,Squiz.Classes.ValidClassName
+          ./src 2>&1 | tee phpcs.txt
+      - name: Summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo '### PHP - codesniffer (code style + docblocks)'
+            if [ -s phpcs.txt ]; then echo '```'; head -c 60000 phpcs.txt; echo '```'; else echo 'No output.'; fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  phpstan:
+    name: PHP - static
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+      - uses: ramsey/composer-install@v3
+        with:
+          composer-options: --optimize-autoloader --no-progress
+      - name: PHPStan (annotations)
+        shell: bash
+        run: vendor/bin/phpstan analyse --memory-limit 2G --no-progress --error-format=github || true
+      - name: PHPStan
+        shell: bash
+        run: |
+          set -o pipefail
+          vendor/bin/phpstan analyse --memory-limit 2G --no-progress --error-format=table 2>&1 | tee phpstan_results.txt
+      - name: Summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo '### PHP - static (PHPStan)'
+            if [ -s phpstan_results.txt ]; then echo '```'; head -c 60000 phpstan_results.txt; echo '```'; else echo 'No output.'; fi
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: phpstan-results
+          path: phpstan_results.txt
+          retention-days: 7
+
+  phpunit:
+    name: PHP - PHPUnit
+    runs-on: ubuntu-latest
+    outputs:
+      outcome: ${{ steps.run.outcome }}
+    services:
+      mysql:
+        image: mariadb:11.4
+        env:
+          MARIADB_DATABASE: db_test
+          MARIADB_USER: db_test
+          MARIADB_PASSWORD: db_test
+          MARIADB_ROOT_PASSWORD: root
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=10
+    env:
+      DB_TEST_HOST: 127.0.0.1
+      DB_TEST_USER: db_test
+      DB_TEST_PASSWORD: db_test
+      DB_TEST_DATABASE: db_test
+      DB_TEST_PORT: '3306'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: mysqli
+          coverage: none
+      - uses: ramsey/composer-install@v3
+        with:
+          composer-options: --optimize-autoloader --no-progress
+      - name: PHPUnit
+        id: run
+        continue-on-error: true  # allow_failure
+        shell: bash
+        run: |
+          set -o pipefail
+          vendor/bin/phpunit -c ./ --colors=never --log-junit junit.xml 2>&1 | tee phpunit.txt
+      - name: Summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo '### PHP - PHPUnit'
+            if [ -s phpunit.txt ]; then echo '```'; head -c 60000 phpunit.txt; echo '```'; else echo 'No output.'; fi
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: phpunit-results
+          path: junit.xml
+          if-no-files-found: ignore
+          retention-days: 30
+
+  secret-detection:
+    name: Secret detection (gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: gitleaks
+        shell: bash
+        run: |
+          set -o pipefail
+          docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:latest \
+            detect --source /repo --no-banner --redact 2>&1 | tee gitleaks.txt
+      - name: Summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo '### Secret detection (gitleaks)'
+            echo '```'; head -c 60000 gitleaks.txt; echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  dependency-audit:
+    name: Dependency audit (composer audit)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+      - name: composer audit
+        shell: bash
+        run: |
+          set -o pipefail
+          # A library has no composer.lock; resolve one first so there is something to audit.
+          composer update --no-install --no-interaction --no-progress
+          composer audit --locked 2>&1 | tee audit.txt
+      - name: Summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo '### Dependency audit (composer audit)'
+            echo '```'; head -c 60000 audit.txt; echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  overview:
+    name: Overview
+    runs-on: ubuntu-latest
+    if: always()
+    needs:
+      - yamllint
+      - phpcs
+      - phpstan
+      - phpunit
+      - secret-detection
+      - dependency-audit
+    steps:
+      - name: Result table
+        shell: bash
+        env:
+          R_YAMLLINT: ${{ needs.yamllint.outputs.outcome }}
+          R_PHPCS: ${{ needs.phpcs.result }}
+          R_PHPSTAN: ${{ needs.phpstan.result }}
+          R_PHPUNIT: ${{ needs.phpunit.outputs.outcome }}
+          R_SECRETS: ${{ needs.secret-detection.result }}
+          R_AUDIT: ${{ needs.dependency-audit.result }}
+        run: |
+          icon() {
+            case "$1" in
+              success) echo '✅ passed' ;;
+              failure) echo '❌ failed' ;;
+              cancelled) echo '⚪ cancelled' ;;
+              skipped) echo '⚪ skipped' ;;
+              *) echo "❔ $1" ;;
+            esac
+          }
+          {
+            echo '## CI overview'
+            echo
+            echo '| Check | Result | Note |'
+            echo '| --- | --- | --- |'
+            echo "| YAML - yamllint | $(icon "$R_YAMLLINT") | informational (allow_failure) |"
+            echo "| PHP - codesniffer (style + docblocks) | $(icon "$R_PHPCS") | |"
+            echo "| PHP - static (PHPStan) | $(icon "$R_PHPSTAN") | |"
+            echo "| PHP - PHPUnit | $(icon "$R_PHPUNIT") | informational (allow_failure) |"
+            echo "| Secret detection | $(icon "$R_SECRETS") | |"
+            echo "| Dependency audit | $(icon "$R_AUDIT") | |"
+            echo
+            echo 'Details per check are in the summaries of the individual jobs on this page.'
+          } >> "$GITHUB_STEP_SUMMARY"
