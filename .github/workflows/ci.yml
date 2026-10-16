@@ -1,0 +1,124 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - '*milestone*'
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  yamllint:
+    name: YAML - yamllint
+    runs-on: ubuntu-latest
+    continue-on-error: true  # was allow_failure: true in GitLab
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip install yamllint
+      - run: yamllint -d relaxed .
+
+  phpcs-docblocks:
+    name: PHP - docblocks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          tools: phpcs
+          coverage: none
+      - run: >
+          phpcs -s -p --extensions=php
+          --standard=.phpcs-docblock.xml
+          --exclude=Generic.Files.LineLength,Squiz.Classes.ValidClassName
+          ./src
+
+  phpcs:
+    name: PHP - codesniffer
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          tools: phpcs
+          coverage: none
+      - run: >
+          phpcs -s -p --extensions=php
+          --standard=.phpcs.xml
+          --exclude=Generic.Files.LineLength,Squiz.Classes.ValidClassName
+          ./src
+
+  phpstan:
+    name: PHP - static
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+      - uses: ramsey/composer-install@v3
+        with:
+          composer-options: --optimize-autoloader --no-progress
+      - run: |
+          mkdir -p app
+          touch app/CI
+          sh bin/test/phpstan.sh | tee phpstan_results.txt
+          exit "${PIPESTATUS[0]}"
+        shell: bash
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: phpstan-results
+          path: phpstan_results.txt
+          retention-days: 7
+
+  phpunit:
+    name: PHP - PHPUnit
+    runs-on: ubuntu-latest
+    continue-on-error: true  # was allow_failure: true in GitLab
+    services:
+      mysql:
+        image: mariadb:11.4
+        env:
+          MARIADB_DATABASE: db_test
+          MARIADB_USER: db_test
+          MARIADB_PASSWORD: db_test
+          MARIADB_ROOT_PASSWORD: root
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=10
+    env:
+      DB_TEST_HOST: 127.0.0.1
+      DB_TEST_USER: db_test
+      DB_TEST_PASSWORD: db_test
+      DB_TEST_DATABASE: db_test
+      DB_TEST_PORT: '3306'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: mysqli
+          coverage: none
+      - uses: ramsey/composer-install@v3
+        with:
+          composer-options: --optimize-autoloader --no-progress
+      - run: |
+          mkdir -p app
+          touch app/CI
+      - run: vendor/bin/phpunit -c ./
