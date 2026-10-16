@@ -213,7 +213,7 @@ jobs:
           set -o pipefail
           # A library has no composer.lock; resolve one first so there is something to audit.
           composer update --no-install --no-interaction --no-progress
-          composer audit 2>&1 | tee audit.txt
+          composer audit --locked 2>&1 | tee audit.txt
       - name: Summary
         if: always()
         shell: bash
