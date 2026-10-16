@@ -1302,7 +1302,7 @@ class DB
 
                         // Add the field to the column list string.
                         $index_columns .= "`" . $column_data['fieldname'] . "`";
-                        if ($column_data['subpart'] != '') {
+                        if ('' !== (string)$column_data['subpart']) {
                             $index_columns .= '(' . $column_data['subpart'] . ')';
                         }
                     }
@@ -1568,7 +1568,7 @@ class DB
 
             if ($result instanceof \mysqli_result) {
                 while ($row = $result->fetch_assoc()) {
-                    if ($a == 0) {
+                    if (0 === $a) {
                         fputcsv($fp, array_keys($row), $delimiter, $enclosure, $escape_char);
                     }
                     foreach ($row as $k => $v) {
