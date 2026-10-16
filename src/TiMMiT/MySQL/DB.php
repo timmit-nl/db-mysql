@@ -1107,6 +1107,25 @@ class DB
     }
 
     /**
+     * Remove the empty entries from a list of queries.
+     *
+     * @param string[] $queries
+     *
+     * @return string[]
+     */
+    private static function removeEmptyQueries(array $queries): array
+    {
+        $result = [];
+        foreach ($queries as $key => $query) {
+            if ('' !== $query) {
+                $result[$key] = $query;
+            }
+        }
+
+        return $result;
+    }
+
+    /**
      * Apply the CREATE TABLE / ALTER TABLE reconciliation for dbDelta.
      *
      * @param string|string[] $queries
@@ -1119,7 +1138,7 @@ class DB
         // Separate individual queries into an array
         if (!is_array($queries)) {
             $queries = explode(';', $queries);
-            $queries = array_filter($queries, static fn (string $query): bool => '' !== $query);
+            $queries = self::removeEmptyQueries($queries);
         }
 
         /**
