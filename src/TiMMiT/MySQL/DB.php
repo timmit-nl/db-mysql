@@ -13,6 +13,7 @@ declare(strict_types=1);
 
 namespace TiMMiT\MySQL;
 
+use mysqli;
 use TiMMiT\MySQL\Where\Collection;
 
 /**
@@ -99,18 +100,18 @@ class DB
     protected static array $stats = [];
 
     /**
-     * Created DB connection
+     * Created DB connection, null when not connected
      *
-     * @var \mysqli
+     * @var mysqli|null
      */
-    protected static \mysqli $mlink;
+    protected static ?mysqli $mlink = null;
 
     /**
-     * Created DBwrite connection
+     * Created DBwrite connection, null when not connected
      *
-     * @var \mysqli
+     * @var mysqli|null
      */
-    protected static \mysqli $mlinkWrite;
+    protected static ?mysqli $mlinkWrite = null;
 
     /**
      * The default charset for the connection.
@@ -156,6 +157,15 @@ class DB
      * @var int
      */
     private static int $lastAffectedRows = -1;
+
+    /**
+     * Auto-increment id of the last statement run through query(), read from the connection that executed it.
+     *
+     * 0 when the last statement generated no id or failed.
+     *
+     * @var int|string
+     */
+    private static int|string $lastInsertId = 0;
 
     /**
      * setConfigValue
@@ -266,12 +276,12 @@ class DB
         }
 
         if (self::ping()) {
-            self::setCharsetOnConnection(self::$mlink);
-            self::setTimeZoneOnConnection(self::$mlink);
+            self::setCharsetOnConnection(self::getLink());
+            self::setTimeZoneOnConnection(self::getLink());
         }
         if (self::$writeActive && self::ping(true)) {
-            self::setCharsetOnConnection(self::$mlinkWrite);
-            self::setTimeZoneOnConnection(self::$mlinkWrite);
+            self::setCharsetOnConnection(self::getLink(true));
+            self::setTimeZoneOnConnection(self::getLink(true));
             self::$wsrepSupport = DB::checkIfWsrep();
             self::setWsrepSyncWait(true);
         }
@@ -282,9 +292,9 @@ class DB
      *
      * @param string[]|int[] $config Connection settings
      *
-     * @return \mysqli|false
+     * @return mysqli|false
      */
-    private static function createConnection(array $config): \mysqli|false
+    private static function createConnection(array $config): mysqli|false
     {
         $mlink = mysqli_init();
         if (false === $mlink) {
@@ -316,11 +326,11 @@ class DB
     /**
      * setCharsetOnConnection
      *
-     * @param \mysqli $mlink
+     * @param mysqli $mlink
      *
      * @return void
      */
-    private static function setCharsetOnConnection(\mysqli $mlink): void
+    private static function setCharsetOnConnection(mysqli $mlink): void
     {
         try {
             mysqli_set_charset($mlink, self::$charset);
@@ -342,11 +352,11 @@ class DB
      * keeps the offset it started with. Named zones do need the time zone tables of MySQL to be
      * filled, which is not a given, so both fallbacks below exist.
      *
-     * @param \mysqli $mlink
+     * @param mysqli $mlink
      *
      * @return void
      */
-    private static function setTimeZoneOnConnection(\mysqli $mlink): void
+    private static function setTimeZoneOnConnection(mysqli $mlink): void
     {
         if (self::trySetTimeZone($mlink, date_default_timezone_get())) {
             return;
@@ -371,12 +381,12 @@ class DB
      *
      * Quotes are stripped from the value so the SET statement cannot break out of the string.
      *
-     * @param \mysqli $mlink
+     * @param mysqli $mlink
      * @param string $timeZone A zone name such as Europe/Amsterdam, or an offset such as +02:00.
      *
      * @return bool
      */
-    private static function trySetTimeZone(\mysqli $mlink, string $timeZone): bool
+    private static function trySetTimeZone(mysqli $mlink, string $timeZone): bool
     {
         $escaped = str_replace("'", '', $timeZone);
         if ('' === $escaped) {
@@ -393,11 +403,11 @@ class DB
     /**
      * Compare the current UTC offset of the connection with the one PHP is using.
      *
-     * @param \mysqli $mlink
+     * @param mysqli $mlink
      *
      * @return bool False when the offsets differ or the server did not answer.
      */
-    private static function connectionOffsetMatchesPhp(\mysqli $mlink): bool
+    private static function connectionOffsetMatchesPhp(mysqli $mlink): bool
     {
         try {
             $result = mysqli_query($mlink, 'SELECT TIMESTAMPDIFF(SECOND, UTC_TIMESTAMP(), NOW()) AS offset_seconds');
@@ -485,20 +495,24 @@ class DB
             self::addToStats(__FUNCTION__);
 
             mysqli_report(self::$mysqliReportingExceptionOn);
-            if (self::$writeActive && isset(self::$mlinkWrite) && ($skipPing || self::ping(true))) {
+            if (isset(self::$mlinkWrite)) {
                 try {
-                    mysqli_close(self::$mlinkWrite);
+                    if ($skipPing || self::ping(true)) {
+                        mysqli_close(self::$mlinkWrite);
+                    }
                 } catch (\Throwable $e) {
                 } finally {
-                    unset(self::$mlinkWrite);
+                    self::$mlinkWrite = null;
                 }
             }
-            if (isset(self::$mlink) && ($skipPing || self::ping())) {
+            if (isset(self::$mlink)) {
                 try {
-                    mysqli_close(self::$mlink);
+                    if ($skipPing || self::ping()) {
+                        mysqli_close(self::$mlink);
+                    }
                 } catch (\Throwable $e) {
                 } finally {
-                    unset(self::$mlink);
+                    self::$mlink = null;
                 }
             }
         } catch (\Throwable $e) {
@@ -565,6 +579,31 @@ class DB
     }
 
     /**
+     * Return the primary or the write connection.
+     *
+     * @param bool $writeNode
+     *
+     * @return mysqli
+     *
+     * @throws DBException When the connection is not open, for example after disconnect().
+     */
+    private static function getLink(bool $writeNode = false): mysqli
+    {
+        $mlink = self::$mlink;
+        $message = 'No database connection';
+        if ($writeNode) {
+            $mlink = self::$mlinkWrite;
+            $message .= ' to the write node';
+        }
+
+        if (is_null($mlink)) {
+            throw new DBException($message);
+        }
+
+        return $mlink;
+    }
+
+    /**
      * Update Query function
      *
      * @param string $query
@@ -579,15 +618,16 @@ class DB
     private static function query(string $query, bool $writeQuery = false, ?int $resultmode = null, int $count = 0)
     {
         if ($writeQuery && self::$writeActive) {
-            $mlink = self::$mlinkWrite;
+            $mlink = self::getLink(true);
             $write = true;
         } else {
-            $mlink = self::$mlink;
+            $mlink = self::getLink();
             $write = false;
         }
         self::addToStats(__FUNCTION__);
         $result = false;
         self::$lastAffectedRows = -1;
+        self::$lastInsertId = 0;
 
         try {
             if (is_null($resultmode)) {
@@ -596,6 +636,7 @@ class DB
                 $result = mysqli_query($mlink, $query, $resultmode);
             }
             self::$lastAffectedRows = (int)mysqli_affected_rows($mlink);
+            self::$lastInsertId = mysqli_insert_id($mlink);
         } catch (\Exception $e) {
             $errorno = mysqli_errno($mlink);
             $error = mysqli_error($mlink);
@@ -831,7 +872,7 @@ class DB
     {
         self::addToStats(__FUNCTION__);
         self::query($query, $writeNode); //test
-        return mysqli_insert_id(self::$mlink);
+        return self::$lastInsertId;
     }
 
     /**
@@ -958,7 +999,7 @@ class DB
     public static function clean4DB(string $value, bool $key = false): string
     {
         self::addToStats(__FUNCTION__);
-        $value = addcslashes(mysqli_real_escape_string(self::$mlink, $value), "%_");
+        $value = addcslashes(mysqli_real_escape_string(self::getLink(), $value), "%_");
         if (false !== $key) {
             $value = str_replace('\_', "_", $value);
         }
@@ -1076,7 +1117,7 @@ class DB
     public static function getCharSet(): string
     {
         self::addToStats(__FUNCTION__);
-        return mysqli_character_set_name(self::$mlink);
+        return mysqli_character_set_name(self::getLink());
     }
 
     /**
@@ -1730,9 +1771,9 @@ class DB
         if (self::$wsrepSupport) {
             try {
                 if ($on) {
-                    mysqli_query(self::$mlink, "SET SESSION wsrep_sync_wait = 1;");
+                    mysqli_query(self::getLink(), "SET SESSION wsrep_sync_wait = 1;");
                 } else {
-                    mysqli_query(self::$mlink, "SET SESSION wsrep_sync_wait = 0;");
+                    mysqli_query(self::getLink(), "SET SESSION wsrep_sync_wait = 0;");
                 }
             } catch (\Exception $ex) {
             }
