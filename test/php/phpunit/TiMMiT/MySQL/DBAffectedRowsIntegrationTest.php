@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace test\php\phpunit\TiMMiT\MySQL;
 
 use TiMMiT\MySQL\DB;
+use TiMMiT\MySQL\DBException;
 use test\php\phpunit\BaseTestCase;
 
 /**
@@ -68,6 +69,18 @@ class DBAffectedRowsIntegrationTest extends BaseTestCase
     }
 
     /**
+     * A failing UPDATE keeps throwing instead of returning false.
+     */
+    public function testUpdateQueryThrowsOnSqlFailure(): void
+    {
+        DB::loadConfig($this->databaseConfig());
+        DB::connect();
+
+        $this->expectException(DBException::class);
+        DB::updateQuery('UPDATE `' . self::TABLE . '_missing` SET `value` = 1 WHERE `id` = 1;');
+    }
+
+    /**
      * @return array<string, array{0: bool, 1: int}>
      */
     public static function foundRowsProvider(): array
@@ -94,14 +107,21 @@ class DBAffectedRowsIntegrationTest extends BaseTestCase
 
         DB::insertQuery('INSERT INTO `' . self::TABLE . '` (`id`, `value`) VALUES (1, 10);');
 
-        DB::updateQuery('UPDATE `' . self::TABLE . '` SET `value` = 11 WHERE `id` = 1;');
+        $this->assertTrue(DB::updateQuery('UPDATE `' . self::TABLE . '` SET `value` = 11 WHERE `id` = 1;'));
         $this->assertSame(1, DB::getAffectedRows());
 
-        DB::updateQuery('UPDATE `' . self::TABLE . '` SET `value` = 11 WHERE `id` = 1;');
+        $this->assertSame(
+            $expectedNoOpRows > 0,
+            DB::updateQuery('UPDATE `' . self::TABLE . '` SET `value` = 11 WHERE `id` = 1;')
+        );
         $this->assertSame($expectedNoOpRows, DB::getAffectedRows());
 
-        DB::updateQuery('UPDATE `' . self::TABLE . '` SET `value` = 11 WHERE `id` = 999;');
+        $this->assertFalse(DB::updateQuery('UPDATE `' . self::TABLE . '` SET `value` = 11 WHERE `id` = 999;'));
         $this->assertSame(0, DB::getAffectedRows());
+
+        DB::ping();
+        DB::ping(true);
+        $this->assertSame(0, DB::getAffectedRows(), 'ping() must not overwrite the affected-row count.');
 
         DB::insertQuery(
             'INSERT INTO `' . self::TABLE . '` (`id`, `value`) VALUES (2, 20) '
