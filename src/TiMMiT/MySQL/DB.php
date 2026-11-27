@@ -149,6 +149,15 @@ class DB
     private static bool $useFoundRows = false;
 
     /**
+     * Affected-row count of the last statement run through query(), read from the connection that executed it.
+     *
+     * -1 when the last statement failed.
+     *
+     * @var int
+     */
+    private static int $lastAffectedRows = -1;
+
+    /**
      * setConfigValue
      *
      * @param string $field
@@ -578,6 +587,7 @@ class DB
         }
         self::addToStats(__FUNCTION__);
         $result = false;
+        self::$lastAffectedRows = -1;
 
         try {
             if (is_null($resultmode)) {
@@ -585,6 +595,7 @@ class DB
             } else {
                 $result = mysqli_query($mlink, $query, $resultmode);
             }
+            self::$lastAffectedRows = (int)mysqli_affected_rows($mlink);
         } catch (\Exception $e) {
             $errorno = mysqli_errno($mlink);
             $error = mysqli_error($mlink);
@@ -630,6 +641,9 @@ class DB
     /**
      * Update Query function
      *
+     * Returns true only when the statement affected at least one row. With useFoundRows enabled, a
+     * matching row whose values did not change counts as affected.
+     *
      * @param string $query
      * @param bool $writeNode
      *
@@ -638,16 +652,25 @@ class DB
     public static function updateQuery(string $query, bool $writeNode = true): bool
     {
         self::addToStats(__FUNCTION__);
-        return (bool)self::query($query, $writeNode);
+        $querySucceeded = (bool)self::query($query, $writeNode);
+        if ($querySucceeded) {
+            return 0 < self::$lastAffectedRows;
+        }
+
+        return false;
     }
 
     /**
      * Return the number of rows affected by the most recent statement.
      *
+     * The count belongs to the connection that executed the last statement run through this class,
+     * including after a fallback from the write node to the primary node. Internal statements such as
+     * ping() do not change it.
+     *
      * UPDATE statements return changed rows by default. When the connection was initialised with
      * useFoundRows enabled, they return matched rows, including rows whose values did not change.
      *
-     * @param bool $writeNode
+     * @param bool $writeNode Kept for backwards compatibility; it no longer selects a connection.
      *
      * @return int
      */
@@ -655,12 +678,7 @@ class DB
     {
         self::addToStats(__FUNCTION__);
 
-        $mlink = self::$mlink;
-        if ($writeNode && self::$writeActive) {
-            $mlink = self::$mlinkWrite;
-        }
-
-        return (int)mysqli_affected_rows($mlink);
+        return self::$lastAffectedRows;
     }
 
     /**
